@@ -1,7 +1,7 @@
 package constants
 
 const (
-	DefaultMBLevels                   = 40
+	DefaultMTLevels                   = 40
 	DefaultValueArraySize             = 64
 	DefaultMTLevelsOnChain            = 64
 	DefaultMTLevelsClaimsMerklization = 32

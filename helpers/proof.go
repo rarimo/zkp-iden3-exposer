@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rarimo/go-merkletree"
 	"github.com/rarimo/zkp-iden3-exposer/types"
+	"math/big"
 	"net/http"
 )
 
@@ -164,25 +165,16 @@ func reverseBytes(data []byte) {
 }
 
 func ConvertEndianSwappedCoreStateHashHex(hash string) (*string, error) {
-	//const convertedStateHash = fromLittleEndian(
-	//	Hex.decodeString(hash.slice(2)),
-	//).toString(16);
-	//
-	//return convertedStateHash?.length < 64
-	//? `0x0${convertedStateHash}`
-	//: `0x${convertedStateHash}`;
-
 	hexDecodedString, err := hex.DecodeString(hash[2:])
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Reverse the byte order (little-endian to big-endian)
-	reverseBytes(hexDecodedString)
+	fromLE := FromLittleEndian(hexDecodedString)
 
 	// Convert the reversed byte array back to a hex string
-	convertedStateHash := hex.EncodeToString(hexDecodedString)
+	convertedStateHash := hex.EncodeToString(fromLE.Bytes())
 
 	// Add "0x" prefix if necessary
 	if len(convertedStateHash) < 64 {
@@ -194,4 +186,35 @@ func ConvertEndianSwappedCoreStateHashHex(hash string) (*string, error) {
 	result := "0x" + convertedStateHash
 
 	return &result, nil
+}
+
+func FromLittleEndian(bytes []byte) *big.Int {
+	n256 := big.NewInt(256)
+	result := big.NewInt(0)
+	base := big.NewInt(1)
+
+	for _, b := range bytes {
+		byteBigInt := big.NewInt(int64(b))
+		result.Add(result, new(big.Int).Mul(base, byteBigInt))
+		base.Mul(base, n256)
+	}
+
+	return result
+}
+
+func FromBigEndian(bytes []byte) *big.Int {
+	reverseBytes(bytes)
+
+	return FromLittleEndian(bytes)
+}
+
+func PrepareSiblingsStr(proof merkletree.Proof, levels int) []*merkletree.Hash {
+	siblings := proof.AllSiblings()
+
+	// Add the rest of empty levels to the siblings
+	for i := len(siblings); i < levels; i++ {
+		siblings = append(siblings, &merkletree.HashZero)
+	}
+
+	return siblings
 }
