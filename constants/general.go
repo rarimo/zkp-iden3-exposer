@@ -28,3 +28,10 @@ var QueryOperators = map[string]Operators{
 	"$nin":  NIN,
 	"$ne":   NE,
 }
+
+type ProofType string
+
+const (
+	BJJSignature               ProofType = "BJJSignature2021"
+	Iden3SparseMerkleTreeProof ProofType = "Iden3SparseMerkleTreeProof"
+)
