@@ -4,6 +4,7 @@ import (
 	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-iden3-crypto/babyjub"
+	"github.com/rarimo/go-circuits"
 	"github.com/rarimo/go-merkletree"
 	merkletree_db_memory "github.com/rarimo/go-merkletree/db/memory"
 	"github.com/rarimo/zkp-iden3-exposer/constants"
@@ -182,3 +183,5 @@ func (i *Identity) createCoreAuthClaim() (*core.Claim, error) {
 
 	return claim, nil
 }
+
+func (i *Identity) PrepareAuthV2Inputs(hash []byte, circuitID circuits.CircuitID) ([]byte, error) {}
