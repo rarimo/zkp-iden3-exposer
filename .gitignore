@@ -1,0 +1,47 @@
+.DS_Store
+.idea
+dist/
+build/
+coverage/
+.cache/
+public/
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# dotenv environment variables file
+.env
+.env.test
+.env.local
+.env.development
+.env.prod
+.env.production
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
