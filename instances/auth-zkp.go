@@ -3,23 +3,30 @@ package instances
 import (
 	"encoding/json"
 	"github.com/google/uuid"
+	"github.com/iden3/go-circuits"
+	"github.com/iden3/go-jwz"
 	"github.com/pkg/errors"
-	"github.com/rarimo/go-jwz"
 	"github.com/rarimo/zkp-iden3-exposer/types"
+	"net/http"
+	"strings"
 )
 
 type AuthZkpConfig struct {
 	ChainInfo types.ChainZkpInfo
 	// TODO: mb use files straight away
-	CircuitUrls struct {
-		wasmUrl string
-		zkeyUrl string
-	}
+	Circuits types.CircuitPair
 }
 
 type AuthZkp struct {
 	Config   AuthZkpConfig
 	Identity Identity
+}
+
+func NewAuthZkp(config AuthZkpConfig, identity Identity) *AuthZkp {
+	return &AuthZkp{
+		Config:   config,
+		Identity: identity,
+	}
 }
 
 // TODO: create W3Credential type
@@ -55,10 +62,11 @@ func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*types.
 		claimDetails.Typ = fallbackTyp
 	}
 
-	if claimDetails.Type = claimOffer.Type; claimDetails.Type == "" {
-		fallbackType := "https://iden3-communication.io/credentials/1.0/fetch-request"
-		claimDetails.Type = fallbackType
-	}
+	//if claimDetails.Type = claimOffer.Type; claimDetails.Type == "" {
+	//	fallbackType := "https://iden3-communication.io/credentials/1.0/fetch-request"
+	//	claimDetails.Type = fallbackType
+	//}
+	claimDetails.Type = "https://iden3-communication.io/credentials/1.0/fetch-request"
 
 	if claimDetails.ThreadID = *claimOffer.ThreadID; claimDetails.ThreadID == "" {
 		claimDetails.ThreadID = guid.String()
@@ -70,6 +78,8 @@ func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*types.
 		return nil, errors.New("claimOffer.Body is nil")
 	}
 
+	claimDetails.Body = claimDetailsBody
+
 	// TODO: explain why from = to, and to = from
 	if claimDetails.From = claimOffer.To; claimDetails.From == "" {
 		return nil, errors.New("claimOffer.To is nil")
@@ -79,17 +89,49 @@ func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*types.
 		return nil, errors.New("claimOffer.From is nil")
 	}
 
-	claimDetailsBody.Id = claimOffer.Body.Credentials[0].Id
-
 	claimDetailsJson, err := json.Marshal(claimDetails)
 
 	if err != nil {
 		return nil, err
 	}
 
-	token, err := jwz.NewWithPayload(jwz.ProvingMethodGroth16AuthV2Instance, claimDetailsJson, a.Identity.PrepareAuthV2Inputs)
+	preparer := jwz.ProofInputsPreparerHandlerFunc(func(hash []byte, circuitID circuits.CircuitID) ([]byte, error) {
+		return a.Identity.PrepareAuthV2Inputs(hash, circuitID)
+	})
+
+	token, err := jwz.NewWithPayload(
+		jwz.ProvingMethodGroth16AuthV2Instance,
+		claimDetailsJson,
+		preparer,
+	)
 
 	if err != nil {
 		return nil, err
 	}
+
+	jwzTokenRaw, err := token.Prove(a.Config.Circuits.ProvingKey, a.Config.Circuits.Wasm)
+
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := http.Post(claimOffer.Body.Url, "application/json", strings.NewReader(jwzTokenRaw))
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to post")
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, errors.New("response status is not OK")
+	}
+
+	defer response.Body.Close()
+
+	agentResponse := types.AgentResponse{}
+
+	if err := json.NewDecoder(response.Body).Decode(&agentResponse); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal")
+	}
+
+	return &agentResponse.Body.Credential, nil
 }

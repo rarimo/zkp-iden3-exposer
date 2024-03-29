@@ -1,10 +1,11 @@
 package instances
 
 import (
+	"encoding/json"
+	"github.com/iden3/go-circuits"
 	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-iden3-crypto/babyjub"
-	"github.com/rarimo/go-circuits"
 	"github.com/rarimo/go-merkletree"
 	merkletree_db_memory "github.com/rarimo/go-merkletree/db/memory"
 	"github.com/rarimo/zkp-iden3-exposer/constants"
@@ -16,6 +17,7 @@ import (
 type IdentityConfig struct {
 	IdType        [2]byte
 	SchemaHashHex string
+	ChainInfo     types.ChainZkpInfo
 }
 
 type Identity struct {
@@ -23,9 +25,9 @@ type Identity struct {
 	PrivateKey                babyjub.PrivateKey
 	DID                       w3c.DID
 	AuthClaimIncProofSiblings []*merkletree.Hash
-	AuthClaimNonRevProof      merkletree.Proof
-	TreeState                 types.TreeState
-	CoreAuthClaim             core.Claim
+	AuthClaimNonRevProof      *merkletree.Proof
+	TreeState                 *types.TreeState
+	CoreAuthClaim             *core.Claim
 }
 
 func NewIdentity(config IdentityConfig, privateKeyHex *string) (*Identity, error) {
@@ -43,7 +45,7 @@ func NewIdentity(config IdentityConfig, privateKeyHex *string) (*Identity, error
 
 	coreAuthClaim, err := identity.createCoreAuthClaim()
 
-	identity.CoreAuthClaim = *coreAuthClaim
+	identity.CoreAuthClaim = coreAuthClaim
 
 	hi, hv, err := identity.CoreAuthClaim.HiHv()
 
@@ -117,7 +119,7 @@ func NewIdentity(config IdentityConfig, privateKeyHex *string) (*Identity, error
 	}
 
 	identity.AuthClaimIncProofSiblings = authClaimIncProofSiblings
-	identity.AuthClaimNonRevProof = *authClaimNonRevProof
+	identity.AuthClaimNonRevProof = authClaimNonRevProof
 
 	stateHash, err := merkletree.HashElems(
 		claimsTreeRoot.BigInt(),
@@ -129,7 +131,7 @@ func NewIdentity(config IdentityConfig, privateKeyHex *string) (*Identity, error
 		return nil, err
 	}
 
-	identity.TreeState = types.TreeState{
+	identity.TreeState = &types.TreeState{
 		State:              *stateHash,
 		ClaimsTreeRoot:     *claimsTreeRoot,
 		RevocationTreeRoot: *revocationsTreeRoot,
@@ -143,7 +145,7 @@ func (i *Identity) DidString() string {
 	return i.DID.String()
 }
 
-func (i *Identity) IdentityBigIntString() (*string, error) {
+func (i *Identity) IdentityBigInt() (*big.Int, error) {
 	parsedDID, err := w3c.ParseDID(i.DidString())
 
 	if err != nil {
@@ -156,7 +158,17 @@ func (i *Identity) IdentityBigIntString() (*string, error) {
 		return nil, err
 	}
 
-	idBigIntString := id.BigInt().String()
+	return id.BigInt(), nil
+}
+
+func (i *Identity) IdentityBigIntString() (*string, error) {
+	id, err := i.IdentityBigInt()
+
+	if err != nil {
+		return nil, err
+	}
+
+	idBigIntString := id.String()
 
 	return &idBigIntString, nil
 }
@@ -184,4 +196,62 @@ func (i *Identity) createCoreAuthClaim() (*core.Claim, error) {
 	return claim, nil
 }
 
-func (i *Identity) PrepareAuthV2Inputs(hash []byte, circuitID circuits.CircuitID) ([]byte, error) {}
+func (i *Identity) PrepareAuthV2Inputs(hash []byte, circuitID circuits.CircuitID) ([]byte, error) {
+	hashBigInt := helpers.FromBigEndian(hash)
+
+	signature := i.PrivateKey.SignPoseidon(hashBigInt)
+
+	userId, err := i.IdentityBigInt()
+
+	if err != nil {
+		return nil, err
+	}
+
+	gistProofRaw, err := helpers.GetGISTProof(
+		i.Config.ChainInfo.CoreEvmRpcApiUrl,
+		i.Config.ChainInfo.CoreStateContractAddress,
+		userId,
+		nil,
+	)
+
+	gistProof, err := helpers.ToGISTProof(*gistProofRaw)
+	globalNodeAux := helpers.GetNodeAuxValue(gistProof.Proof)
+	nodeAuxAuth := helpers.GetNodeAuxValue(*i.AuthClaimNonRevProof)
+
+	preparedInputs := types.AuthV2CircuitInputs{
+		GenesisID:    userId.String(),
+		ProfileNonce: "0",
+
+		AuthClaim:    i.CoreAuthClaim,
+		AuthClaimMtp: i.AuthClaimIncProofSiblings,
+
+		AuthClaimNonRevMtp:      helpers.PrepareSiblingsStr(*i.AuthClaimNonRevProof, constants.DefaultMTLevels),
+		AuthClaimNonRevMtpAuxHi: &nodeAuxAuth.Key,
+		AuthClaimNonRevMtpAuxHv: &nodeAuxAuth.Value,
+		AuthClaimNonRevMtpNoAux: nodeAuxAuth.NoAux,
+
+		Challenge:             hashBigInt.String(),
+		ChallengeSignatureR8X: signature.R8.X.String(),
+		ChallengeSignatureR8Y: signature.R8.Y.String(),
+		ChallengeSignatureS:   signature.S.String(),
+
+		ClaimsTreeRoot: &i.TreeState.ClaimsTreeRoot,
+		RevTreeRoot:    &i.TreeState.RevocationTreeRoot,
+		RootsTreeRoot:  &i.TreeState.RootOfRoots,
+		State:          &i.TreeState.State,
+
+		GISTRoot:     &gistProof.Root,
+		GISTMtp:      helpers.PrepareSiblingsStr(gistProof.Proof, constants.DefaultMTLevelsOnChain),
+		GISTMtpAuxHi: &globalNodeAux.Key,
+		GISTMtpAuxHv: &globalNodeAux.Value,
+		GISTMtpNoAux: globalNodeAux.NoAux,
+	}
+
+	encodedInputs, err := json.Marshal(preparedInputs)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return encodedInputs, nil
+}

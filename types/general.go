@@ -1,10 +1,15 @@
 package types
 
 type ChainZkpInfo struct {
-	targetChainId              int
-	targetRpcUrl               string
-	targetStateContractAddress string
-	coreApiUrl                 string
-	coreEvmRpcApiUrl           string
-	coreStateContractAddress   string
+	TargetChainId              int
+	TargetRpcUrl               string
+	TargetStateContractAddress string
+	CoreApiUrl                 string
+	CoreEvmRpcApiUrl           string
+	CoreStateContractAddress   string
+}
+
+type CircuitPair struct {
+	Wasm       []byte
+	ProvingKey []byte
 }

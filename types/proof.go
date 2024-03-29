@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/rarimo/go-merkletree"
 )
 
@@ -90,19 +91,64 @@ type Iden3SparseMerkleTreeProofRaw struct {
 }
 
 type W3CCredential struct {
-	Id             string   `json:"id"`
-	AtContext      []string `json:"@context"`
-	Type           []string `json:"type"`
-	ExpirationDate *string
-	IssuanceDate   *string `json:"issuanceDate"`
-	// FIXME: empty struct
-	CredentialSubject struct{}         `json:"credentialSubject"`
+	Id                string           `json:"id"`
+	AtContext         []string         `json:"@context"`
+	Type              []string         `json:"type"`
+	ExpirationDate    *string          `json:"expirationDate"`
+	IssuanceDate      *string          `json:"issuanceDate"`
+	CredentialSubject json.RawMessage  `json:"credentialSubject"`
 	CredentialStatus  CredentialStatus `json:"credentialStatus"`
-	Issuer            string
+	Issuer            string           `json:"issuer"`
 	CredentialSchema  struct {
-		Id   string
-		Type string
-	}
+		Id   string `json:"id"`
+		Type string `json:"type"`
+	} `json:"credentialSchema"`
 	/* tuple: [ BJJSignatureProofRaw, Iden3SparseMerkleTreeProofRaw ] */
 	Proof []json.RawMessage `json:"proof"`
+}
+
+type AgentResponse struct {
+	Body struct {
+		Credential W3CCredential `json:"credential"`
+	} `json:"body"`
+}
+
+type GISTProof struct {
+	Root  merkletree.Hash
+	Proof merkletree.Proof
+}
+
+type NodeAuxValue struct {
+	Key   merkletree.Hash
+	Value merkletree.Hash
+	NoAux string
+}
+
+type AuthV2CircuitInputs struct {
+	GenesisID    string `json:"genesisID"`
+	ProfileNonce string `json:"profileNonce"`
+
+	AuthClaim    *core.Claim        `json:"authClaim"`
+	AuthClaimMtp []*merkletree.Hash `json:"authClaimIncMtp"`
+
+	AuthClaimNonRevMtp      []*merkletree.Hash `json:"authClaimNonRevMtp"`
+	AuthClaimNonRevMtpAuxHi *merkletree.Hash   `json:"authClaimNonRevMtpAuxHi"`
+	AuthClaimNonRevMtpAuxHv *merkletree.Hash   `json:"authClaimNonRevMtpAuxHv"`
+	AuthClaimNonRevMtpNoAux string             `json:"authClaimNonRevMtpNoAux"`
+
+	Challenge             string `json:"challenge"`
+	ChallengeSignatureR8X string `json:"challengeSignatureR8x"`
+	ChallengeSignatureR8Y string `json:"challengeSignatureR8y"`
+	ChallengeSignatureS   string `json:"challengeSignatureS"`
+
+	ClaimsTreeRoot *merkletree.Hash `json:"claimsTreeRoot"`
+	RevTreeRoot    *merkletree.Hash `json:"revTreeRoot"`
+	RootsTreeRoot  *merkletree.Hash `json:"rootsTreeRoot"`
+	State          *merkletree.Hash `json:"state"`
+
+	GISTRoot     *merkletree.Hash   `json:"gistRoot"`
+	GISTMtp      []*merkletree.Hash `json:"gistMtp"`
+	GISTMtpAuxHi *merkletree.Hash   `json:"gistMtpAuxHi"`
+	GISTMtpAuxHv *merkletree.Hash   `json:"gistMtpAuxHv"`
+	GISTMtpNoAux string             `json:"gistMtpNoAux"`
 }

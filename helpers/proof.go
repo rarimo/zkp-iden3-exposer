@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/pkg/errors"
 	"github.com/rarimo/go-merkletree"
+	"github.com/rarimo/zkp-iden3-exposer/contracts"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"math/big"
 	"net/http"
@@ -209,7 +210,8 @@ func FromBigEndian(bytes []byte) *big.Int {
 }
 
 func PrepareSiblingsStr(proof merkletree.Proof, levels int) []*merkletree.Hash {
-	siblings := proof.AllSiblings()
+	//siblings := proof.AllSiblings()
+	siblings := proof.Siblings
 
 	// Add the rest of empty levels to the siblings
 	for i := len(siblings); i < levels; i++ {
@@ -217,4 +219,58 @@ func PrepareSiblingsStr(proof merkletree.Proof, levels int) []*merkletree.Hash {
 	}
 
 	return siblings
+}
+
+func ToGISTProof(gistProofRaw contracts.IStateGistProof) (*types.GISTProof, error) {
+	var existence = false
+	nodeAux := merkletree.NodeAux{}
+
+	if gistProofRaw.Existence {
+		existence = true
+	} else if gistProofRaw.AuxExistence {
+		nodeAux.Key = merkletree.NewHashFromBigInt(gistProofRaw.AuxIndex)
+		nodeAux.Value = merkletree.NewHashFromBigInt(gistProofRaw.AuxValue)
+	}
+
+	allSiblings := make([]*merkletree.Hash, len(gistProofRaw.Siblings))
+
+	for i, sibling := range gistProofRaw.Siblings {
+		allSiblings[i] = merkletree.NewHashFromBigInt(sibling)
+	}
+
+	gistProof := &types.GISTProof{}
+
+	gistProof.Proof = merkletree.Proof{
+		Existence: existence,
+		Siblings:  allSiblings,
+		NodeAux:   &nodeAux,
+	}
+
+	gistProof.Root = *merkletree.NewHashFromBigInt(gistProofRaw.Root)
+
+	return gistProof, nil
+}
+
+func GetNodeAuxValue(proof merkletree.Proof) types.NodeAuxValue {
+	if proof.Existence {
+		return types.NodeAuxValue{
+			Key:   merkletree.HashZero,
+			Value: merkletree.HashZero,
+			NoAux: "0",
+		}
+	}
+
+	if proof.NodeAux != nil && proof.NodeAux.Value != nil && proof.NodeAux.Key != nil {
+		return types.NodeAuxValue{
+			Key:   *proof.NodeAux.Key,
+			Value: *proof.NodeAux.Value,
+			NoAux: "0",
+		}
+	}
+
+	return types.NodeAuxValue{
+		Key:   merkletree.HashZero,
+		Value: merkletree.HashZero,
+		NoAux: "1",
+	}
 }
