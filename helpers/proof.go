@@ -3,8 +3,10 @@ package helpers
 import (
 	"encoding/hex"
 	"encoding/json"
+	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/pkg/errors"
 	"github.com/rarimo/go-merkletree"
+	"github.com/rarimo/zkp-iden3-exposer/constants"
 	"github.com/rarimo/zkp-iden3-exposer/contracts"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"math/big"
@@ -24,9 +26,9 @@ type ProofJson struct {
 
 type TreeStateJson struct {
 	State              string `json:"state"`
-	ClaimsTreeRoot     string `json:"claims_tree_root"`
-	RevocationTreeRoot string `json:"revocation_tree_root"`
-	RootOfRoots        string `json:"root_of_roots"`
+	ClaimsTreeRoot     string `json:"claimsTreeRoot"`
+	RevocationTreeRoot string `json:"revocationTreeRoot"`
+	RootOfRoots        string `json:"rootOfRoots"`
 }
 
 type RevStatusJson struct {
@@ -38,7 +40,7 @@ func NewProofFromJson(proofJson ProofJson) (*merkletree.Proof, error) {
 	Siblings := make([](*merkletree.Hash), len(proofJson.Siblings))
 
 	for i, sibling := range proofJson.Siblings {
-		siblingHash, err := merkletree.NewHashFromHex(sibling)
+		siblingHash, err := merkletree.NewHashFromString(sibling)
 
 		if err != nil {
 			return nil, err
@@ -49,13 +51,13 @@ func NewProofFromJson(proofJson ProofJson) (*merkletree.Proof, error) {
 
 	NodeAux := merkletree.NodeAux{}
 
-	key, err := merkletree.NewHashFromHex(proofJson.NodeAux.Key)
+	key, err := merkletree.NewHashFromString(proofJson.NodeAux.Key)
 
 	if err != nil {
 		return nil, err
 	}
 
-	value, err := merkletree.NewHashFromHex(proofJson.NodeAux.Value)
+	value, err := merkletree.NewHashFromString(proofJson.NodeAux.Value)
 
 	if err != nil {
 		return nil, err
@@ -273,4 +275,74 @@ func GetNodeAuxValue(proof merkletree.Proof) types.NodeAuxValue {
 		Value: merkletree.HashZero,
 		NoAux: "1",
 	}
+}
+
+func CheckVCAndGetCoreClaim(vc types.W3CCredential) (*core.Claim, *core.Claim, error) {
+	revStatus, err := GetRevocationStatus(vc.CredentialStatus.Id, nil)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if revStatus.Mtp.Existence {
+		return nil, nil, errors.New("Credential is revoked")
+	}
+
+	if len(vc.Proof) == 0 {
+		return nil, nil, errors.New("Proof is empty")
+	}
+
+	var sigProof = types.BJJSignatureProofRaw{}
+
+	for _, proof := range vc.Proof {
+		if proof != nil {
+			if err := json.Unmarshal(proof, &sigProof); err != nil {
+				continue
+			}
+
+			if sigProof.Type == string(constants.BJJSignature) {
+				break
+			}
+		}
+	}
+
+	if &sigProof == nil {
+		return nil, nil, errors.New("Signature proof is empty")
+	}
+
+	sigProofCoreClaim := core.Claim{}
+
+	err = sigProofCoreClaim.FromHex(sigProof.CoreClaim)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var mtProof = types.Iden3SparseMerkleTreeProofRaw{}
+
+	for _, proof := range vc.Proof {
+		if proof != nil {
+			if err := json.Unmarshal(proof, &mtProof); err != nil {
+				continue
+			}
+
+			if mtProof.Type == string(constants.Iden3SparseMerkleTreeProof) {
+				break
+			}
+		}
+	}
+
+	if &mtProof == nil {
+		return nil, nil, errors.New("Signature proof is empty")
+	}
+
+	mtProofCoreClaim := core.Claim{}
+
+	err = mtProofCoreClaim.FromHex(mtProof.CoreClaim)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &sigProofCoreClaim, &mtProofCoreClaim, nil
 }

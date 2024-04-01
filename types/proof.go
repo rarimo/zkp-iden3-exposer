@@ -3,9 +3,12 @@ package types
 import (
 	"encoding/json"
 	core "github.com/iden3/go-iden3-core/v2"
+	"github.com/iden3/go-iden3-crypto/babyjub"
 	"github.com/rarimo/go-merkletree"
+	"math/big"
 )
 
+// custom, TODO: mb can find a existed type
 type TreeState struct {
 	State              merkletree.Hash
 	RootOfRoots        merkletree.Hash
@@ -13,6 +16,7 @@ type TreeState struct {
 	RevocationTreeRoot merkletree.Hash
 }
 
+// custom, TODO: mb can find a existed type
 type RevocationStatus struct {
 	Mtp    merkletree.Proof
 	Issuer TreeState
@@ -113,11 +117,13 @@ type AgentResponse struct {
 	} `json:"body"`
 }
 
+// custom, TODO: mb can find a existed type
 type GISTProof struct {
 	Root  merkletree.Hash
 	Proof merkletree.Proof
 }
 
+// custom, TODO: mb can find a existed type
 type NodeAuxValue struct {
 	Key   merkletree.Hash
 	Value merkletree.Hash
@@ -151,4 +157,40 @@ type AuthV2CircuitInputs struct {
 	GISTMtpAuxHi *merkletree.Hash   `json:"gistMtpAuxHi"`
 	GISTMtpAuxHv *merkletree.Hash   `json:"gistMtpAuxHv"`
 	GISTMtpNoAux string             `json:"gistMtpNoAux"`
+}
+
+// custom
+type WrappedProof struct {
+	Proof     merkletree.Proof
+	TreeState TreeState
+}
+
+// custom
+type SignatureProof struct {
+	Signature             *babyjub.Signature
+	IssuerAuthClaim       *core.Claim
+	IssuerAuthIncProof    WrappedProof
+	IssuerAuthNonRevProof WrappedProof
+}
+
+// custom
+type CircuitClaim struct {
+	IssuerId       string
+	Claim          core.Claim
+	SignatureProof *SignatureProof
+	IncProof       *WrappedProof
+}
+
+type ValueProof struct {
+	Path  big.Int
+	Value *big.Int
+	Mtp   merkletree.Proof
+}
+
+// custom
+type Query struct {
+	slotIndex  int
+	values     []big.Int
+	operator   int
+	valueProof *ValueProof
 }
