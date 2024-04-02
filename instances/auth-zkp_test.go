@@ -2,6 +2,7 @@ package instances
 
 import (
 	"encoding/json"
+	"github.com/pkg/errors"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"io"
 	"net/http"
@@ -17,7 +18,13 @@ func getFile(path string) ([]byte, error) {
 		return nil, err
 	}
 
-	defer file.Close()
+	defer func() {
+		err := file.Close()
+
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	data, err := io.ReadAll(file)
 
@@ -28,6 +35,54 @@ func getFile(path string) ([]byte, error) {
 	return data, nil
 }
 
+func GetOffer(issuerApi string, identity *Identity, claimType string) (types.ClaimOffer, error) {
+	offer := types.ClaimOffer{}
+
+	response, err := http.Get(issuerApi + "/v1/credentials/" + identity.DID.String() + "/" + claimType)
+
+	if err != nil {
+		return offer, errors.Wrap(err, "Error getting offer")
+	}
+
+	if err := json.NewDecoder(response.Body).Decode(&offer); err != nil {
+		return offer, errors.Wrap(err, "Error decoding offer")
+	}
+
+	return offer, nil
+}
+
+func GetVC(identity Identity, offer types.ClaimOffer) (*types.W3CCredential, error) {
+	wasmFileBytes, err := getFile("../assets/circuits/auth/circuit.wasm")
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting wasm file")
+	}
+
+	provingKeyFileBytes, err := getFile("../assets/circuits/auth/circuit_final.zkey")
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting proving key file")
+	}
+
+	circuits := types.CircuitPair{
+		Wasm:       wasmFileBytes,
+		ProvingKey: provingKeyFileBytes,
+	}
+
+	authZkp := NewAuthZkp(AuthZkpConfig{
+		ChainInfo: identity.Config.ChainInfo,
+		Circuits:  circuits,
+	}, identity)
+
+	vc, err := authZkp.GetVerifiableCredentials(offer)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting vc")
+	}
+
+	return vc, nil
+}
+
 func TestGetVerifiableCredentials(t *testing.T) {
 	issuerApi := "https://issuer.polygon.robotornot.mainnet-beta.rarimo.com"
 	claimType := "urn:uuid:6dff4518-5177-4f39-af58-9c156d9b6309"
@@ -35,41 +90,17 @@ func TestGetVerifiableCredentials(t *testing.T) {
 	offer := types.ClaimOffer{}
 
 	t.Run("should get offer", func(t *testing.T) {
-		response, err := http.Get(issuerApi + "/v1/credentials/" + identity.DID.String() + "/" + claimType)
+		claimOffer, err := GetOffer(issuerApi, &identity, claimType)
 
 		if err != nil {
 			t.Errorf("Error: %v", err)
 		}
 
-		if err := json.NewDecoder(response.Body).Decode(&offer); err != nil {
-			t.Errorf("Error: %v", err)
-		}
+		offer = claimOffer
 	})
 
 	t.Run("should get vc", func(t *testing.T) {
-		wasmFileBytes, err := getFile("../assets/circuits/auth/circuit.wasm")
-
-		if err != nil {
-			t.Errorf("Error: %v", err)
-		}
-
-		provingKeyFileBytes, err := getFile("../assets/circuits/auth/circuit_final.zkey")
-
-		if err != nil {
-			t.Errorf("Error: %v", err)
-		}
-
-		circuits := types.CircuitPair{
-			Wasm:       wasmFileBytes,
-			ProvingKey: provingKeyFileBytes,
-		}
-
-		authZkp := NewAuthZkp(AuthZkpConfig{
-			ChainInfo: identity.Config.ChainInfo,
-			Circuits:  circuits,
-		}, identity)
-
-		vc, err := authZkp.GetVerifiableCredentials(offer)
+		vc, err := GetVC(identity, offer)
 
 		if err != nil {
 			t.Errorf("Error: %v", err)
