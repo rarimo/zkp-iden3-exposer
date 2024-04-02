@@ -12,12 +12,12 @@ import (
 func TestGenerateZkProof(t *testing.T) {
 	issuerApi := "https://issuer.polygon.robotornot.mainnet-beta.rarimo.com"
 	claimType := "urn:uuid:6dff4518-5177-4f39-af58-9c156d9b6309"
-	identity := getIdentity()
+	identity := getIdentity(nil)
 	offer := types.ClaimOffer{}
 	vc := &types.W3CCredential{}
 
 	t.Run("should get offer", func(t *testing.T) {
-		response, err := http.Get(issuerApi + "/v1/credentials/" + identity.DidString() + "/" + claimType)
+		response, err := http.Get(issuerApi + "/v1/credentials/" + identity.DID.String() + "/" + claimType)
 
 		if err != nil {
 			t.Errorf("Error: %v", err)

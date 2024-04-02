@@ -3,8 +3,8 @@ package instances
 import (
 	"encoding/json"
 	"github.com/google/uuid"
-	"github.com/iden3/go-circuits"
-	"github.com/iden3/go-jwz"
+	"github.com/iden3/go-circuits/v2"
+	"github.com/iden3/go-jwz/v2"
 	"github.com/pkg/errors"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"net/http"

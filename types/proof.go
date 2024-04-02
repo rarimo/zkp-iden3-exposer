@@ -2,26 +2,19 @@ package types
 
 import (
 	"encoding/json"
+	"github.com/iden3/go-circuits/v2"
 	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-iden3-crypto/babyjub"
-	"github.com/rarimo/go-merkletree"
-	"math/big"
+	"github.com/iden3/go-merkletree-sql/v2"
 )
-
-// custom, TODO: mb can find a existed type
-type TreeState struct {
-	State              merkletree.Hash
-	RootOfRoots        merkletree.Hash
-	ClaimsTreeRoot     merkletree.Hash
-	RevocationTreeRoot merkletree.Hash
-}
 
 // custom, TODO: mb can find a existed type
 type RevocationStatus struct {
 	Mtp    merkletree.Proof
-	Issuer TreeState
+	Issuer circuits.TreeState
 }
 
+// custom
 type ClaimOffer struct {
 	Body struct {
 		Credentials []struct {
@@ -118,51 +111,16 @@ type AgentResponse struct {
 }
 
 // custom, TODO: mb can find a existed type
-type GISTProof struct {
-	Root  merkletree.Hash
-	Proof merkletree.Proof
-}
-
-// custom, TODO: mb can find a existed type
 type NodeAuxValue struct {
 	Key   merkletree.Hash
 	Value merkletree.Hash
 	NoAux string
 }
 
-type AuthV2CircuitInputs struct {
-	GenesisID    string `json:"genesisID"`
-	ProfileNonce string `json:"profileNonce"`
-
-	AuthClaim    *core.Claim        `json:"authClaim"`
-	AuthClaimMtp []*merkletree.Hash `json:"authClaimIncMtp"`
-
-	AuthClaimNonRevMtp      []*merkletree.Hash `json:"authClaimNonRevMtp"`
-	AuthClaimNonRevMtpAuxHi *merkletree.Hash   `json:"authClaimNonRevMtpAuxHi"`
-	AuthClaimNonRevMtpAuxHv *merkletree.Hash   `json:"authClaimNonRevMtpAuxHv"`
-	AuthClaimNonRevMtpNoAux string             `json:"authClaimNonRevMtpNoAux"`
-
-	Challenge             string `json:"challenge"`
-	ChallengeSignatureR8X string `json:"challengeSignatureR8x"`
-	ChallengeSignatureR8Y string `json:"challengeSignatureR8y"`
-	ChallengeSignatureS   string `json:"challengeSignatureS"`
-
-	ClaimsTreeRoot *merkletree.Hash `json:"claimsTreeRoot"`
-	RevTreeRoot    *merkletree.Hash `json:"revTreeRoot"`
-	RootsTreeRoot  *merkletree.Hash `json:"rootsTreeRoot"`
-	State          *merkletree.Hash `json:"state"`
-
-	GISTRoot     *merkletree.Hash   `json:"gistRoot"`
-	GISTMtp      []*merkletree.Hash `json:"gistMtp"`
-	GISTMtpAuxHi *merkletree.Hash   `json:"gistMtpAuxHi"`
-	GISTMtpAuxHv *merkletree.Hash   `json:"gistMtpAuxHv"`
-	GISTMtpNoAux string             `json:"gistMtpNoAux"`
-}
-
 // custom
 type WrappedProof struct {
 	Proof     merkletree.Proof
-	TreeState TreeState
+	TreeState circuits.TreeState
 }
 
 // custom
@@ -181,16 +139,22 @@ type CircuitClaim struct {
 	IncProof       *WrappedProof
 }
 
-type ValueProof struct {
-	Path  big.Int
-	Value *big.Int
-	Mtp   merkletree.Proof
+// custom
+type ProofQuery struct {
+	AllowedIssuers      []string        `json:"allowedIssuers"`
+	CredentialSubject   json.RawMessage `json:"credentialSubject"`
+	Schema              string          `json:"schema"`
+	ClaimId             string          `json:"claimId"`
+	CredentialSubjectId string          `json:"credentialSubjectId"`
+	Context             string          `json:"context"`
+	Type                []string        `json:"type"`
 }
 
 // custom
-type Query struct {
-	slotIndex  int
-	values     []big.Int
-	operator   int
-	valueProof *ValueProof
+type CreateProofRequest struct {
+	id             *int
+	accountAddress *string
+	circuitId      circuits.CircuitID
+	challenge      *string // bigint string
+	query          ProofQuery
 }

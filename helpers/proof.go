@@ -3,9 +3,10 @@ package helpers
 import (
 	"encoding/hex"
 	"encoding/json"
+	"github.com/iden3/go-circuits/v2"
 	core "github.com/iden3/go-iden3-core/v2"
+	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/pkg/errors"
-	"github.com/rarimo/go-merkletree"
 	"github.com/rarimo/zkp-iden3-exposer/constants"
 	"github.com/rarimo/zkp-iden3-exposer/contracts"
 	"github.com/rarimo/zkp-iden3-exposer/types"
@@ -13,68 +14,16 @@ import (
 	"net/http"
 )
 
-type NodeAuxJSON struct {
-	Key   string
-	Value string
-}
+func NewProofFromJson(proofJsonBytes []byte) (*merkletree.Proof, error) {
+	proof := &merkletree.Proof{}
 
-type ProofJson struct {
-	Existence bool         `json:"existence"`
-	Siblings  []string     `json:"siblings"`
-	NodeAux   *NodeAuxJSON `json:"node_aux"` // TODO: mb json could be NodeAux
-}
-
-type TreeStateJson struct {
-	State              string `json:"state"`
-	ClaimsTreeRoot     string `json:"claimsTreeRoot"`
-	RevocationTreeRoot string `json:"revocationTreeRoot"`
-	RootOfRoots        string `json:"rootOfRoots"`
-}
-
-type RevStatusJson struct {
-	Mtp    ProofJson     `json:"mtp"`
-	Issuer TreeStateJson `json:"issuer"`
-}
-
-func NewProofFromJson(proofJson ProofJson) (*merkletree.Proof, error) {
-	Siblings := make([](*merkletree.Hash), len(proofJson.Siblings))
-
-	for i, sibling := range proofJson.Siblings {
-		siblingHash, err := merkletree.NewHashFromString(sibling)
-
-		if err != nil {
-			return nil, err
-		}
-
-		Siblings[i] = siblingHash
-	}
-
-	NodeAux := merkletree.NodeAux{}
-
-	key, err := merkletree.NewHashFromString(proofJson.NodeAux.Key)
+	err := proof.UnmarshalJSON(proofJsonBytes)
 
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to unmarshal proofJson")
 	}
 
-	value, err := merkletree.NewHashFromString(proofJson.NodeAux.Value)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if proofJson.NodeAux != nil {
-		NodeAux = merkletree.NodeAux{
-			Key:   key,
-			Value: value,
-		}
-	}
-
-	return &merkletree.Proof{
-		Existence: proofJson.Existence,
-		Siblings:  Siblings,
-		NodeAux:   &NodeAux,
-	}, nil
+	return proof, nil
 }
 
 func BuildTreeState(
@@ -82,7 +31,7 @@ func BuildTreeState(
 	claimsTreeRoot string,
 	revocationTreeRoot string,
 	rootOfRoots string,
-) (*types.TreeState, error) {
+) (*circuits.TreeState, error) {
 	State, err := merkletree.NewHashFromHex(state)
 
 	if err != nil {
@@ -107,11 +56,11 @@ func BuildTreeState(
 		return nil, err
 	}
 
-	return &types.TreeState{
-		State:              *State,
-		ClaimsTreeRoot:     *ClaimsTreeRoot,
-		RevocationTreeRoot: *RevocationTreeRoot,
-		RootOfRoots:        *RootOfRoots,
+	return &circuits.TreeState{
+		State:          State,
+		ClaimsRoot:     ClaimsTreeRoot,
+		RevocationRoot: RevocationTreeRoot,
+		RootOfRoots:    RootOfRoots,
 	}, nil
 }
 
@@ -128,7 +77,19 @@ func GetRevocationStatus(
 	response, err := http.Get(revStatusUrl)
 
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get revocation status")
+	}
+
+	type TreeStateJson struct {
+		State              string `json:"state"`
+		ClaimsTreeRoot     string `json:"claimsTreeRoot"`
+		RevocationTreeRoot string `json:"revocationTreeRoot"`
+		RootOfRoots        string `json:"rootOfRoots"`
+	}
+
+	type RevStatusJson struct {
+		Mtp    json.RawMessage `json:"mtp"`
+		Issuer TreeStateJson   `json:"issuer"`
 	}
 
 	var revStatusJson RevStatusJson
@@ -212,8 +173,8 @@ func FromBigEndian(bytes []byte) *big.Int {
 }
 
 func PrepareSiblingsStr(proof merkletree.Proof, levels int) []*merkletree.Hash {
-	//siblings := proof.AllSiblings()
-	siblings := proof.Siblings
+	//siblings := proof.Siblings
+	siblings := proof.AllSiblings()
 
 	// Add the rest of empty levels to the siblings
 	for i := len(siblings); i < levels; i++ {
@@ -223,58 +184,63 @@ func PrepareSiblingsStr(proof merkletree.Proof, levels int) []*merkletree.Hash {
 	return siblings
 }
 
-func ToGISTProof(gistProofRaw contracts.IStateGistProof) (*types.GISTProof, error) {
-	var existence = false
+func ToGISTProof(gistProofRaw contracts.IStateGistProof) (*circuits.GISTProof, error) {
+	var existence = gistProofRaw.Existence
 	nodeAux := merkletree.NodeAux{}
 
-	if gistProofRaw.Existence {
-		existence = true
-	} else if gistProofRaw.AuxExistence {
-		nodeAux.Key = merkletree.NewHashFromBigInt(gistProofRaw.AuxIndex)
-		nodeAux.Value = merkletree.NewHashFromBigInt(gistProofRaw.AuxValue)
+	if existence == false && gistProofRaw.AuxExistence == true {
+		nodeAuxKey, err := merkletree.NewHashFromBigInt(gistProofRaw.AuxIndex)
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create nodeAuxKey")
+		}
+
+		nodeAux.Key = nodeAuxKey
+
+		nodeAuxValue, err := merkletree.NewHashFromBigInt(gistProofRaw.AuxValue)
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create nodeAuxValue")
+		}
+
+		nodeAux.Value = nodeAuxValue
 	}
 
 	allSiblings := make([]*merkletree.Hash, len(gistProofRaw.Siblings))
 
 	for i, sibling := range gistProofRaw.Siblings {
-		allSiblings[i] = merkletree.NewHashFromBigInt(sibling)
+		siblingHash, err := merkletree.NewHashFromBigInt(sibling)
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create sibling")
+		}
+
+		allSiblings[i] = siblingHash
 	}
 
-	gistProof := &types.GISTProof{}
+	gistProof := &circuits.GISTProof{}
 
-	gistProof.Proof = merkletree.Proof{
-		Existence: existence,
-		Siblings:  allSiblings,
-		NodeAux:   &nodeAux,
+	gistProofProof, err := merkletree.NewProofFromData(
+		existence,
+		allSiblings,
+		&nodeAux,
+	)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create proof")
 	}
 
-	gistProof.Root = *merkletree.NewHashFromBigInt(gistProofRaw.Root)
+	gistProof.Proof = gistProofProof
+
+	gistProofRoot, err := merkletree.NewHashFromBigInt(gistProofRaw.Root)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create root")
+	}
+
+	gistProof.Root = gistProofRoot
 
 	return gistProof, nil
-}
-
-func GetNodeAuxValue(proof merkletree.Proof) types.NodeAuxValue {
-	if proof.Existence {
-		return types.NodeAuxValue{
-			Key:   merkletree.HashZero,
-			Value: merkletree.HashZero,
-			NoAux: "0",
-		}
-	}
-
-	if proof.NodeAux != nil && proof.NodeAux.Value != nil && proof.NodeAux.Key != nil {
-		return types.NodeAuxValue{
-			Key:   *proof.NodeAux.Key,
-			Value: *proof.NodeAux.Value,
-			NoAux: "0",
-		}
-	}
-
-	return types.NodeAuxValue{
-		Key:   merkletree.HashZero,
-		Value: merkletree.HashZero,
-		NoAux: "1",
-	}
 }
 
 func CheckVCAndGetCoreClaim(vc types.W3CCredential) (*core.Claim, *core.Claim, error) {
@@ -346,3 +312,27 @@ func CheckVCAndGetCoreClaim(vc types.W3CCredential) (*core.Claim, *core.Claim, e
 
 	return &sigProofCoreClaim, &mtProofCoreClaim, nil
 }
+
+//func PrepareNonMerklizedQuery(proofQuery types.ProofQuery, vc types.W3CCredential) (*circuits.Query, error) {
+//}
+//
+//func PrepareMerklizedQuery(proofQuery types.ProofQuery, vc types.W3CCredential) (*circuits.Query, error) {
+//}
+//
+//func ToCircuitsQuery(proofQuery types.ProofQuery, vc types.W3CCredential, coreClaim core.Claim) (*circuits.Query, error) {
+//	// PrepareNonMerklizedQuery
+//
+//	// PrepareMerklizedQuery
+//
+//	mtPosition, err := coreClaim.GetMerklizedPosition()
+//
+//	if err != nil {
+//		return nil, errors.Wrap(err, "failed to get merklized position")
+//	}
+//
+//	if mtPosition == core.MerklizedRootPositionNone {
+//		return PrepareNonMerklizedQuery(proofQuery, vc)
+//	}
+//
+//	return PrepareMerklizedQuery(proofQuery, vc)
+//}

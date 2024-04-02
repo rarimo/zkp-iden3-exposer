@@ -1,6 +1,7 @@
 package instances
 
 import (
+	"github.com/iden3/go-circuits/v2"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 )
 
@@ -10,7 +11,7 @@ type ZkpGenConfig struct {
 
 type ZkpGenCommonInputs struct {
 	CircuitClaim      types.CircuitClaim
-	Query             types.Query
+	Query             circuits.Query
 	NodeAuxNonRev     types.NodeAuxValue
 	ClaimNonRevStatus types.RevocationStatus
 	Value             []string
@@ -22,4 +23,8 @@ type ZkpGen struct {
 	Identity *Identity
 }
 
-//func (z *ZkpGen) GenerateProof() (jwz.Token, error) {}
+//func (z *ZkpGen) GenerateProof(
+//	coreStateHash string,
+//	operationGistHash string,
+//) (jwz.Token, error) {
+//}
