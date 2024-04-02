@@ -52,4 +52,6 @@ func TestNewIdentity(t *testing.T) {
 			t.Errorf("Expected: %v, got: %v", didString, identity.DID.String())
 		}
 	})
+
+	// TODO: add throw error tests
 }
