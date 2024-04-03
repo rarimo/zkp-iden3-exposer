@@ -1,125 +1,43 @@
 package helpers
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"github.com/iden3/go-circuits/v2"
-	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-merkletree-sql/v2"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
-	"github.com/rarimo/zkp-iden3-exposer/constants"
 	"github.com/rarimo/zkp-iden3-exposer/contracts"
-	"github.com/rarimo/zkp-iden3-exposer/types"
 	"math/big"
 	"net/http"
 )
 
-func NewProofFromJson(proofJsonBytes []byte) (*merkletree.Proof, error) {
-	proof := &merkletree.Proof{}
-
-	err := proof.UnmarshalJSON(proofJsonBytes)
-
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal proofJson")
-	}
-
-	return proof, nil
+type CredentialStatusResolver struct {
+	Url                        string
+	EndianSwappedCoreStateHash *string
 }
 
-func BuildTreeState(
-	state string,
-	claimsTreeRoot string,
-	revocationTreeRoot string,
-	rootOfRoots string,
-) (*circuits.TreeState, error) {
-	State, err := merkletree.NewHashFromHex(state)
+func (c *CredentialStatusResolver) Resolve(ctx context.Context, credentialStatus verifiable.CredentialStatus) (verifiable.RevocationStatus, error) {
+	revStatusUrl := c.Url
 
-	if err != nil {
-		return nil, err
-	}
-
-	ClaimsTreeRoot, err := merkletree.NewHashFromHex(claimsTreeRoot)
-
-	if err != nil {
-		return nil, err
-	}
-
-	RevocationTreeRoot, err := merkletree.NewHashFromHex(revocationTreeRoot)
-
-	if err != nil {
-		return nil, err
-	}
-
-	RootOfRoots, err := merkletree.NewHashFromHex(rootOfRoots)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &circuits.TreeState{
-		State:          State,
-		ClaimsRoot:     ClaimsTreeRoot,
-		RevocationRoot: RevocationTreeRoot,
-		RootOfRoots:    RootOfRoots,
-	}, nil
-}
-
-func GetRevocationStatus(
-	url string,
-	endianSwappedCoreStateHash *string,
-) (*types.RevocationStatus, error) {
-	revStatusUrl := url
-
-	if endianSwappedCoreStateHash != nil {
-		revStatusUrl += "?state=" + *endianSwappedCoreStateHash
+	if c.EndianSwappedCoreStateHash != nil {
+		revStatusUrl += "?state=" + *c.EndianSwappedCoreStateHash
 	}
 
 	response, err := http.Get(revStatusUrl)
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get revocation status")
+		return verifiable.RevocationStatus{}, errors.Wrap(err, "failed to get revocation status")
 	}
 
-	type TreeStateJson struct {
-		State              string `json:"state"`
-		ClaimsTreeRoot     string `json:"claimsTreeRoot"`
-		RevocationTreeRoot string `json:"revocationTreeRoot"`
-		RootOfRoots        string `json:"rootOfRoots"`
+	var revStatus verifiable.RevocationStatus
+
+	if err := json.NewDecoder(response.Body).Decode(&revStatus); err != nil {
+		return verifiable.RevocationStatus{}, errors.Wrap(err, "failed to unmarshal")
 	}
 
-	type RevStatusJson struct {
-		Mtp    json.RawMessage `json:"mtp"`
-		Issuer TreeStateJson   `json:"issuer"`
-	}
-
-	var revStatusJson RevStatusJson
-
-	if err := json.NewDecoder(response.Body).Decode(&revStatusJson); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal")
-	}
-
-	mtp, err := NewProofFromJson(revStatusJson.Mtp)
-
-	if err != nil {
-		return nil, err
-	}
-
-	issuer, err := BuildTreeState(
-		revStatusJson.Issuer.State,
-		revStatusJson.Issuer.ClaimsTreeRoot,
-		revStatusJson.Issuer.RevocationTreeRoot,
-		revStatusJson.Issuer.RootOfRoots,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &types.RevocationStatus{
-		Mtp:    *mtp,
-		Issuer: *issuer,
-	}, nil
-
+	return revStatus, nil
 }
 
 func reverseBytes(data []byte) {
@@ -242,97 +160,3 @@ func ToGISTProof(gistProofRaw contracts.IStateGistProof) (*circuits.GISTProof, e
 
 	return gistProof, nil
 }
-
-func CheckVCAndGetCoreClaim(vc types.W3CCredential) (*core.Claim, *core.Claim, error) {
-	revStatus, err := GetRevocationStatus(vc.CredentialStatus.Id, nil)
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if revStatus.Mtp.Existence {
-		return nil, nil, errors.New("Credential is revoked")
-	}
-
-	if len(vc.Proof) == 0 {
-		return nil, nil, errors.New("Proof is empty")
-	}
-
-	var sigProof = types.BJJSignatureProofRaw{}
-
-	for _, proof := range vc.Proof {
-		if proof != nil {
-			if err := json.Unmarshal(proof, &sigProof); err != nil {
-				continue
-			}
-
-			if sigProof.Type == string(constants.BJJSignature) {
-				break
-			}
-		}
-	}
-
-	if &sigProof == nil {
-		return nil, nil, errors.New("Signature proof is empty")
-	}
-
-	sigProofCoreClaim := core.Claim{}
-
-	err = sigProofCoreClaim.FromHex(sigProof.CoreClaim)
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var mtProof = types.Iden3SparseMerkleTreeProofRaw{}
-
-	for _, proof := range vc.Proof {
-		if proof != nil {
-			if err := json.Unmarshal(proof, &mtProof); err != nil {
-				continue
-			}
-
-			if mtProof.Type == string(constants.Iden3SparseMerkleTreeProof) {
-				break
-			}
-		}
-	}
-
-	if &mtProof == nil {
-		return nil, nil, errors.New("Signature proof is empty")
-	}
-
-	mtProofCoreClaim := core.Claim{}
-
-	err = mtProofCoreClaim.FromHex(mtProof.CoreClaim)
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return &sigProofCoreClaim, &mtProofCoreClaim, nil
-}
-
-//func PrepareNonMerklizedQuery(proofQuery types.ProofQuery, vc types.W3CCredential) (*circuits.Query, error) {
-//}
-//
-//func PrepareMerklizedQuery(proofQuery types.ProofQuery, vc types.W3CCredential) (*circuits.Query, error) {
-//}
-//
-//func ToCircuitsQuery(proofQuery types.ProofQuery, vc types.W3CCredential, coreClaim core.Claim) (*circuits.Query, error) {
-//	// PrepareNonMerklizedQuery
-//
-//	// PrepareMerklizedQuery
-//
-//	mtPosition, err := coreClaim.GetMerklizedPosition()
-//
-//	if err != nil {
-//		return nil, errors.Wrap(err, "failed to get merklized position")
-//	}
-//
-//	if mtPosition == core.MerklizedRootPositionNone {
-//		return PrepareNonMerklizedQuery(proofQuery, vc)
-//	}
-//
-//	return PrepareMerklizedQuery(proofQuery, vc)
-//}

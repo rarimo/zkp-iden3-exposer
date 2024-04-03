@@ -1,4 +1,4 @@
-package instances
+package zkp_iden3
 
 import (
 	"github.com/iden3/go-circuits/v2"
@@ -232,10 +232,6 @@ func (i *Identity) PrepareAuthV2Inputs(hash []byte, circuitID circuits.CircuitID
 
 		Signature: signature,
 		Challenge: hashBigInt,
-	}
-
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to validate inputs")
 	}
 
 	encodedInputs, err := preparedInputs.InputsMarshal()

@@ -1,10 +1,11 @@
-package instances
+package zkp_iden3
 
 import (
 	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/iden3/go-circuits/v2"
 	"github.com/iden3/go-jwz/v2"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"net/http"
@@ -30,7 +31,7 @@ func NewAuthZkp(config AuthZkpConfig, identity Identity) *AuthZkp {
 }
 
 // TODO: create W3Credential type
-func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*types.W3CCredential, error) {
+func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*verifiable.W3CCredential, error) {
 	type ClaimDetailsBody struct {
 		Id string `json:"id"`
 	}
@@ -127,7 +128,13 @@ func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*types.
 
 	defer response.Body.Close()
 
-	agentResponse := types.AgentResponse{}
+	type AgentResponse struct {
+		Body struct {
+			Credential verifiable.W3CCredential `json:"credential"`
+		} `json:"body"`
+	}
+
+	agentResponse := AgentResponse{}
 
 	if err := json.NewDecoder(response.Body).Decode(&agentResponse); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal")

@@ -1,7 +1,8 @@
-package instances
+package zkp_iden3
 
 import (
 	"encoding/json"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"io"
@@ -11,7 +12,7 @@ import (
 	"testing"
 )
 
-func getFile(path string) ([]byte, error) {
+func GetFile(path string) ([]byte, error) {
 	file, err := os.Open(path)
 
 	if err != nil {
@@ -51,14 +52,14 @@ func GetOffer(issuerApi string, identity *Identity, claimType string) (types.Cla
 	return offer, nil
 }
 
-func GetVC(identity Identity, offer types.ClaimOffer) (*types.W3CCredential, error) {
-	wasmFileBytes, err := getFile("../assets/circuits/auth/circuit.wasm")
+func GetVC(identity Identity, offer types.ClaimOffer) (*verifiable.W3CCredential, error) {
+	wasmFileBytes, err := GetFile("./assets/circuits/auth/circuit.wasm")
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting wasm file")
 	}
 
-	provingKeyFileBytes, err := getFile("../assets/circuits/auth/circuit_final.zkey")
+	provingKeyFileBytes, err := GetFile("./assets/circuits/auth/circuit_final.zkey")
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting proving key file")
@@ -106,7 +107,7 @@ func TestGetVerifiableCredentials(t *testing.T) {
 			t.Errorf("Error: %v", err)
 		}
 
-		if strings.Contains(vc.Id, offer.Body.Credentials[0].Id) == false {
+		if strings.Contains(vc.ID, offer.Body.Credentials[0].Id) == false {
 			t.Errorf("Error: %v", err)
 		}
 	})

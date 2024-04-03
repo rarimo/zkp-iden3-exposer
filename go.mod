@@ -10,6 +10,7 @@ require (
 	github.com/iden3/go-iden3-crypto v0.0.16
 	github.com/iden3/go-jwz/v2 v2.0.2
 	github.com/iden3/go-merkletree-sql/v2 v2.0.6
+	github.com/iden3/go-schema-processor/v2 v2.3.3
 	github.com/pkg/errors v0.9.1
 )
 
@@ -23,7 +24,7 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v0.3.0 // indirect
 	github.com/dchest/blake512 v1.0.0 // indirect
 	github.com/deckarep/golang-set/v2 v2.1.0 // indirect
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/ethereum/c-kzg-4844 v0.3.1 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-ole/go-ole v1.2.5 // indirect
@@ -37,6 +38,8 @@ require (
 	github.com/iden3/go-rapidsnark/witness/wazero v0.0.0-20230524142950-0986cf057d4e // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
+	github.com/piprate/json-gold v0.5.1-0.20230111113000-6ddbe6e6f19f // indirect
+	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/supranational/blst v0.3.11 // indirect
 	github.com/tetratelabs/wazero v1.1.0 // indirect
@@ -46,7 +49,8 @@ require (
 	golang.org/x/exp v0.0.0-20230810033253-352e893a4cad // indirect
 	golang.org/x/mod v0.11.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/tools v0.9.1 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )

@@ -1,4 +1,4 @@
-package instances
+package zkp_iden3
 
 import (
 	"github.com/rarimo/zkp-iden3-exposer/types"
