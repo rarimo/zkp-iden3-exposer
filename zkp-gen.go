@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"github.com/iden3/go-circuits/v2"
+	core "github.com/iden3/go-iden3-core/v2"
+	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-jwz/v2"
 	"github.com/iden3/go-merkletree-sql/v2"
 	types2 "github.com/iden3/go-rapidsnark/types"
@@ -47,12 +49,6 @@ func (z *ZkpGen) GenerateProof(
 	proofRequest types.CreateProofRequest,
 	Circuits types.CircuitPair,
 ) (*types2.ZKProof, error) {
-	userId, err := z.Identity.ID()
-
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get ID")
-	}
-
 	jsonString, err := json.Marshal(vc.CredentialStatus)
 
 	if err != nil {
@@ -95,8 +91,117 @@ func (z *ZkpGen) GenerateProof(
 	// TODO: implement
 	query := circuits.Query{}
 
-	// TODO: implement + revStatus
 	claimWithMTPProof := circuits.ClaimWithMTPProof{}
+
+	claimWithMTPProof.Claim = coreClaim
+
+	issuerDID, err := w3c.ParseDID(vc.Issuer)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse issuer DID")
+	}
+
+	issuerID, err := core.IDFromDID(*issuerDID)
+
+	claimWithMTPProof.IssuerID = &issuerID
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get ID from DID")
+	}
+
+	/** Id is a custom solution for rarimo-issuer */
+	type Iden3SparseMerkleTreeProofWithId struct {
+		verifiable.Iden3SparseMerkleTreeProof
+
+		ID string `json:"id"`
+	}
+
+	smtProof := Iden3SparseMerkleTreeProofWithId{}
+
+	for _, proof := range vc.Proof {
+		if proof.ProofType() == verifiable.Iden3SparseMerkleTreeProofType {
+			encodedProof, err := json.Marshal(proof)
+
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to marshal proof")
+			}
+
+			if err := json.Unmarshal(encodedProof, &smtProof); err != nil {
+				return nil, errors.Wrap(err, "failed to unmarshal proof")
+			}
+		}
+	}
+
+	stateHashEndian, err := helpers.ConvertEndianSwappedCoreStateHashHex(coreStateHash)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to convert endian swapped core state hash")
+	}
+
+	smtRevStatus, err := helpers.GetRevocationStatus(smtProof.ID, stateHashEndian)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get revocation status")
+	}
+
+	smtRevStatusTreeState, err := helpers.BuildTreeState(
+		*smtRevStatus.Issuer.State,
+		*smtRevStatus.Issuer.ClaimsTreeRoot,
+		*smtRevStatus.Issuer.RevocationTreeRoot,
+		*smtRevStatus.Issuer.RootOfRoots,
+	)
+
+	incProof := circuits.MTProof{
+		Proof:     &smtRevStatus.MTP,
+		TreeState: *smtRevStatusTreeState,
+	}
+
+	claimWithMTPProof.IncProof = incProof
+
+	revStatusIssuerTreeState, err := helpers.BuildTreeState(
+		*revStatus.Issuer.State,
+		*revStatus.Issuer.ClaimsTreeRoot,
+		*revStatus.Issuer.RevocationTreeRoot,
+		*revStatus.Issuer.RootOfRoots,
+	)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build rev status issuer tree state")
+	}
+
+	claimWithMTPProof.NonRevProof = circuits.MTProof{
+		Proof:     &revStatus.MTP,
+		TreeState: *revStatusIssuerTreeState,
+	}
+
+	// TODO: implement map
+	encodedInputs, err := z.prepareAtomicQueryMTPV2OnChainInputs(
+		operationGistHash,
+		claimWithMTPProof,
+		proofRequest,
+		query,
+	)
+
+	zkProof, err := jwz.ProvingMethodGroth16AuthV2Instance.Prove(encodedInputs, Circuits.ProvingKey, Circuits.Wasm)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create proof")
+	}
+
+	return zkProof, nil
+}
+
+func (z *ZkpGen) prepareAtomicQueryMTPV2OnChainInputs(
+	operationGistHash string,
+	claimWithMTPProof circuits.ClaimWithMTPProof,
+	proofRequest types.CreateProofRequest,
+	query circuits.Query,
+) ([]byte, error) {
+	userId, err := z.Identity.ID()
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get ID")
+	}
 
 	// TODO: check if this is correct
 	_operationGistHash, err := merkletree.NewHashFromHex(operationGistHash)
@@ -163,25 +268,5 @@ func (z *ZkpGen) GenerateProof(
 		return nil, errors.Wrap(err, "failed to marshal inputs")
 	}
 
-	println(string(encodedInputs))
-
-	zkProof, err := jwz.ProvingMethodGroth16AuthV2Instance.Prove(encodedInputs, Circuits.ProvingKey, Circuits.Wasm)
-
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create proof")
-	}
-
-	return zkProof, nil
+	return encodedInputs, nil
 }
-
-//func (z *ZkpGen) PrepareInputs(hash []byte, circuitID circuits.CircuitID) ([]byte, error) {
-//	atomicQueryMTPV2OnChainInputs := circuits.AtomicQueryMTPV2OnChainInputs{}
-//
-//	encodedInputs, err := atomicQueryMTPV2OnChainInputs.InputsMarshal()
-//
-//	if err != nil {
-//		return nil, errors.Wrap(err, "failed to marshal inputs")
-//	}
-//
-//	return encodedInputs, nil
-//}

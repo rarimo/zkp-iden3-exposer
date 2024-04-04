@@ -13,16 +13,11 @@ import (
 	"net/http"
 )
 
-type CredentialStatusResolver struct {
-	Url                        string
-	EndianSwappedCoreStateHash *string
-}
+func GetRevocationStatus(url string, EndianSwappedCoreStateHash *string) (verifiable.RevocationStatus, error) {
+	revStatusUrl := url
 
-func (c *CredentialStatusResolver) Resolve(ctx context.Context, credentialStatus verifiable.CredentialStatus) (verifiable.RevocationStatus, error) {
-	revStatusUrl := c.Url
-
-	if c.EndianSwappedCoreStateHash != nil {
-		revStatusUrl += "?state=" + *c.EndianSwappedCoreStateHash
+	if EndianSwappedCoreStateHash != nil {
+		revStatusUrl += "?state=" + *EndianSwappedCoreStateHash
 	}
 
 	response, err := http.Get(revStatusUrl)
@@ -38,6 +33,15 @@ func (c *CredentialStatusResolver) Resolve(ctx context.Context, credentialStatus
 	}
 
 	return revStatus, nil
+}
+
+type CredentialStatusResolver struct {
+	Url                        string
+	EndianSwappedCoreStateHash *string
+}
+
+func (c *CredentialStatusResolver) Resolve(ctx context.Context, credentialStatus verifiable.CredentialStatus) (verifiable.RevocationStatus, error) {
+	return GetRevocationStatus(c.Url, c.EndianSwappedCoreStateHash)
 }
 
 func reverseBytes(data []byte) {
@@ -88,6 +92,44 @@ func FromBigEndian(bytes []byte) *big.Int {
 	reverseBytes(bytes)
 
 	return FromLittleEndian(bytes)
+}
+
+func BuildTreeState(
+	state string,
+	claimsTreeRoot string,
+	revocationTreeRoot string,
+	rootOfRoots string,
+) (*circuits.TreeState, error) {
+	State, err := merkletree.NewHashFromHex(state)
+
+	if err != nil {
+		return nil, err
+	}
+
+	ClaimsTreeRoot, err := merkletree.NewHashFromHex(claimsTreeRoot)
+
+	if err != nil {
+		return nil, err
+	}
+
+	RevocationTreeRoot, err := merkletree.NewHashFromHex(revocationTreeRoot)
+
+	if err != nil {
+		return nil, err
+	}
+
+	RootOfRoots, err := merkletree.NewHashFromHex(rootOfRoots)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &circuits.TreeState{
+		State:          State,
+		ClaimsRoot:     ClaimsTreeRoot,
+		RevocationRoot: RevocationTreeRoot,
+		RootOfRoots:    RootOfRoots,
+	}, nil
 }
 
 func PrepareSiblingsStr(proof merkletree.Proof, levels int) []*merkletree.Hash {
