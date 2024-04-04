@@ -88,8 +88,11 @@ func (z *ZkpGen) GenerateProof(
 		return nil, errors.Wrap(err, "failed to get core claim from vc")
 	}
 
-	// TODO: implement
-	query := circuits.Query{}
+	query, err := helpers.ConvertProofRequestToCircuitQuery(&proofRequest)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to convert proof request to circuit query")
+	}
 
 	claimWithMTPProof := circuits.ClaimWithMTPProof{}
 
@@ -236,6 +239,12 @@ func (z *ZkpGen) prepareAtomicQueryMTPV2OnChainInputs(
 
 	signature := z.Identity.PrivateKey.SignPoseidon(challenge)
 
+	requestId := big.NewInt(0)
+
+	if &proofRequest.Id != nil {
+		requestId.SetString(proofRequest.Id, 10)
+	}
+
 	mtpv2OnchainInputs := circuits.AtomicQueryMTPV2OnChainInputs{
 		ID:                       userId,
 		ProfileNonce:             big.NewInt(0),
@@ -244,7 +253,7 @@ func (z *ZkpGen) prepareAtomicQueryMTPV2OnChainInputs(
 		Claim:                    claimWithMTPProof,
 		SkipClaimRevocationCheck: false,
 
-		RequestID: big.NewInt(0), // TODO: get from proofRequest
+		RequestID: requestId,
 
 		CurrentTimeStamp: time.Now().Unix(),
 

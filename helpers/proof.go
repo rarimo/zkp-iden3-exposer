@@ -1,14 +1,19 @@
 package helpers
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"github.com/iden3/go-circuits/v2"
 	"github.com/iden3/go-merkletree-sql/v2"
+	"github.com/iden3/go-schema-processor/v2/merklize"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/zkp-iden3-exposer/contracts"
+	"github.com/rarimo/zkp-iden3-exposer/overrides"
+	"github.com/rarimo/zkp-iden3-exposer/types"
 	"math/big"
 	"net/http"
 )
@@ -201,4 +206,114 @@ func ToGISTProof(gistProofRaw contracts.IStateGistProof) (*circuits.GISTProof, e
 	gistProof.Root = gistProofRoot
 
 	return gistProof, nil
+}
+
+func ConvertProofRequestToCircuitQuery(vc *overrides.W3CCredential, request *types.CreateProofRequest) (*circuits.Query, error) {
+	value, ok := new(big.Int).SetString(request.Query.SubjectFieldValue, 10)
+
+	if !ok {
+		return nil, errors.New("failed to parse value")
+	}
+
+	query := circuits.Query{
+		Operator: request.Query.Operator,
+		Values:   []*big.Int{value},
+	}
+
+	vcCopy := *vc
+
+	vcCopy.Proof = nil
+
+	credentialJson, err := json.Marshal(vcCopy)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal vcCopy")
+	}
+
+	merklizer, err := merklize.MerklizeJSONLD(nil, bytes.NewReader(credentialJson))
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to merklize")
+	}
+
+	// TODO: load schemaJSON from vc.Context
+	var schemaJson []byte
+
+	path, err := merklize.NewFieldPathFromContext(schemaJson, vc.Type[1], request.Query.SubjectFieldName)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create field path")
+	}
+
+	err = path.Prepend("https://www.w3.org/2018/credentials#credentialSubject")
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to prepend path")
+	}
+
+	proof, proofValue, err := merklizer.Proof(nil, path)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create proof")
+	}
+
+	pathKey, err := path.MtEntry()
+
+	if err != nil {
+		return nil, fmt.Errorf("error getting path key: %v", err)
+	}
+
+	mtEntry, err := proofValue.MtEntry()
+
+	if err != nil {
+		return nil, fmt.Errorf("error getting mt entry: %v", err)
+	}
+
+	var siblings []*merkletree.Hash
+
+	for _, sibling := range proof.AllSiblings() {
+		siblingText, err := sibling.MarshalText()
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling sibling: %v", err)
+		}
+
+		newSibling := merkletree.Hash{}
+		if err := newSibling.UnmarshalText(siblingText); err != nil {
+			return nil, fmt.Errorf("error unmarshaling sibling: %v", err)
+		}
+
+		siblings = append(siblings, &newSibling)
+	}
+
+	keyHash, err := merkletree.NewHashFromBigInt(pathKey)
+
+	if err != nil {
+		return nil, fmt.Errorf("error creating key hash: %v", err)
+	}
+
+	valueHash, err := merkletree.NewHashFromBigInt(mtEntry)
+
+	if err != nil {
+		return nil, fmt.Errorf("error creating value hash: %v", err)
+	}
+
+	valueProofMTP, err := merkletree.NewProofFromData(
+		proof.Existence,
+		siblings,
+		&merkletree.NodeAux{
+			Key:   keyHash,
+			Value: valueHash,
+		},
+	)
+
+	valueProof := &circuits.ValueProof{
+		Path:  pathKey,
+		MTP:   valueProofMTP,
+		Value: mtEntry,
+	}
+
+	query.ValueProof = valueProof
+	query.SlotIndex = 0
+
+	return &query, nil
 }

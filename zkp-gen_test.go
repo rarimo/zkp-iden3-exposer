@@ -65,7 +65,6 @@ func TestGenerateProof(t *testing.T) {
 
 		issuerID, _ := core.IDFromDID(*issuerDID)
 
-		// should be 0x0c880aacfbe82d54a9757101947c29624063fba108897cbd0489bdb9360001
 		issuerHexId := "0x" + hex.EncodeToString(issuerID.BigInt().Bytes())
 
 		response, _ := http.Get(zkpGen.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/identity/state/" + issuerHexId)
