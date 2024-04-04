@@ -7,6 +7,7 @@ import (
 	"github.com/iden3/go-jwz/v2"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
+	"github.com/rarimo/zkp-iden3-exposer/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"net/http"
 	"strings"
@@ -30,8 +31,7 @@ func NewAuthZkp(config AuthZkpConfig, identity Identity) *AuthZkp {
 	}
 }
 
-// TODO: create W3Credential type
-func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*verifiable.W3CCredential, error) {
+func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*overrides.W3CCredential, error) {
 	type ClaimDetailsBody struct {
 		Id string `json:"id"`
 	}
@@ -130,7 +130,7 @@ func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*verifi
 
 	type AgentResponse struct {
 		Body struct {
-			Credential verifiable.W3CCredential `json:"credential"`
+			Credential overrides.W3CCredential `json:"credential"`
 		} `json:"body"`
 	}
 
@@ -139,6 +139,8 @@ func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*verifi
 	if err := json.NewDecoder(response.Body).Decode(&agentResponse); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal")
 	}
+
+	agentResponse.Body.Credential.W3CCredential.Proof = verifiable.CredentialProofs(agentResponse.Body.Credential.Proof)
 
 	return &agentResponse.Body.Credential, nil
 }

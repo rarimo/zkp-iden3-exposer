@@ -5,7 +5,6 @@ import (
 	"github.com/iden3/go-circuits/v2"
 )
 
-// custom
 type ClaimOffer struct {
 	Body struct {
 		Credentials []struct {
@@ -22,7 +21,6 @@ type ClaimOffer struct {
 	Type     string  `json:"type"`
 }
 
-// custom
 type ProofQuery struct {
 	AllowedIssuers      []string        `json:"allowedIssuers"`
 	CredentialSubject   json.RawMessage `json:"credentialSubject"`
@@ -33,7 +31,6 @@ type ProofQuery struct {
 	Type                []string        `json:"type"`
 }
 
-// custom
 type CreateProofRequest struct {
 	Id             *int
 	AccountAddress *string

@@ -2,8 +2,8 @@ package zkp_iden3
 
 import (
 	"encoding/json"
-	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
+	"github.com/rarimo/zkp-iden3-exposer/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"io"
 	"net/http"
@@ -52,7 +52,7 @@ func GetOffer(issuerApi string, identity *Identity, claimType string) (types.Cla
 	return offer, nil
 }
 
-func GetVC(identity Identity, offer types.ClaimOffer) (*verifiable.W3CCredential, error) {
+func GetVC(identity Identity, offer types.ClaimOffer) (*overrides.W3CCredential, error) {
 	wasmFileBytes, err := GetFile("./assets/circuits/auth/circuit.wasm")
 
 	if err != nil {

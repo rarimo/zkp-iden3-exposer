@@ -12,6 +12,7 @@ import (
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/zkp-iden3-exposer/helpers"
+	"github.com/rarimo/zkp-iden3-exposer/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"math/big"
 	"time"
@@ -45,7 +46,7 @@ func NewZkpGen(config ZkpGenConfig, identity *Identity) *ZkpGen {
 func (z *ZkpGen) GenerateProof(
 	coreStateHash string,
 	operationGistHash string,
-	vc verifiable.W3CCredential,
+	vc overrides.W3CCredential,
 	proofRequest types.CreateProofRequest,
 	Circuits types.CircuitPair,
 ) (*types2.ZKProof, error) {
@@ -109,14 +110,7 @@ func (z *ZkpGen) GenerateProof(
 		return nil, errors.Wrap(err, "failed to get ID from DID")
 	}
 
-	/** Id is a custom solution for rarimo-issuer */
-	type Iden3SparseMerkleTreeProofWithId struct {
-		verifiable.Iden3SparseMerkleTreeProof
-
-		ID string `json:"id"`
-	}
-
-	smtProof := Iden3SparseMerkleTreeProofWithId{}
+	smtProof := overrides.Iden3SparseMerkleTreeProof{}
 
 	for _, proof := range vc.Proof {
 		if proof.ProofType() == verifiable.Iden3SparseMerkleTreeProofType {
