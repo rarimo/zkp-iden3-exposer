@@ -32,9 +32,8 @@ type ProofQuery struct {
 }
 
 type CreateProofRequest struct {
-	Id             *int
-	AccountAddress *string
-	CircuitId      circuits.CircuitID
-	Challenge      *string // bigint string
-	Query          ProofQuery
+	Id        *int
+	CircuitId circuits.CircuitID
+	Challenge string
+	Query     ProofQuery
 }

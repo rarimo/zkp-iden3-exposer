@@ -32,8 +32,11 @@ func TestGenerateProof(t *testing.T) {
 			ChainInfo: identity.Config.ChainInfo,
 		}, &identity)
 
+		accountAddress := "0xEA931A38726546cB7B5992483867387fC9FAdF7b"
+
 		proofRequest := types.CreateProofRequest{
 			CircuitId: circuits.AtomicQueryMTPV2OnChainCircuitID,
+			Challenge: accountAddress[2:],
 		}
 
 		circuitPair := types.CircuitPair{}

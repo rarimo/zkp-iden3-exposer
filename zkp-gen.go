@@ -7,7 +7,6 @@ import (
 	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-jwz/v2"
-	"github.com/iden3/go-merkletree-sql/v2"
 	types2 "github.com/iden3/go-rapidsnark/types"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
@@ -176,6 +175,10 @@ func (z *ZkpGen) GenerateProof(
 		query,
 	)
 
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to prepare AtomicQueryMTPV2OnChain inputs")
+	}
+
 	zkProof, err := jwz.ProvingMethodGroth16AuthV2Instance.Prove(encodedInputs, Circuits.ProvingKey, Circuits.Wasm)
 
 	if err != nil {
@@ -198,14 +201,24 @@ func (z *ZkpGen) prepareAtomicQueryMTPV2OnChainInputs(
 	}
 
 	// TODO: check if this is correct
-	_operationGistHash, err := merkletree.NewHashFromHex(operationGistHash)
+	operationGistHashBigInt := new(big.Int)
+
+	operationGistHashBigInt.SetString(operationGistHash, 16)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get hash from operationGistHash hex")
+	}
 
 	gistProofRaw, err := helpers.GetGISTProof(
 		z.Identity.Config.ChainInfo.CoreEvmRpcApiUrl,
 		z.Identity.Config.ChainInfo.CoreStateContractAddress,
 		userId.BigInt(),
-		_operationGistHash.BigInt(),
+		operationGistHashBigInt,
 	)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get GIST proof raw")
+	}
 
 	gistProof, err := helpers.ToGISTProof(*gistProofRaw)
 
@@ -213,21 +226,13 @@ func (z *ZkpGen) prepareAtomicQueryMTPV2OnChainInputs(
 		return nil, errors.Wrap(err, "failed to get GIST proof")
 	}
 
-	targetChallenge := proofRequest.Challenge
-
-	if targetChallenge == nil {
-		accAddr := *proofRequest.AccountAddress
-
-		*targetChallenge = accAddr[2:]
-	}
-
-	hexDecodedTargetChallenge, err := hex.DecodeString(*targetChallenge)
+	hexDecodedChallenge, err := hex.DecodeString(proofRequest.Challenge)
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to decode account address")
+		return nil, errors.Wrap(err, "failed to decode challenge hex")
 	}
 
-	challenge := helpers.FromLittleEndian(hexDecodedTargetChallenge)
+	challenge := helpers.FromLittleEndian(hexDecodedChallenge)
 
 	signature := z.Identity.PrivateKey.SignPoseidon(challenge)
 
