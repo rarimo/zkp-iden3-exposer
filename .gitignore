@@ -5,6 +5,7 @@ build/
 coverage/
 .cache/
 public/
+frameworks/
 
 # Logs
 logs
