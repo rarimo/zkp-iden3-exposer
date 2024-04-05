@@ -28,10 +28,6 @@ func TestGenerateProof(t *testing.T) {
 	}
 
 	t.Run("should generate proof", func(t *testing.T) {
-		zkpGen := NewZkpGen(ZkpGenConfig{
-			ChainInfo: identity.Config.ChainInfo,
-		}, &identity)
-
 		accountAddress := "0xEA931A38726546cB7B5992483867387fC9FAdF7b"
 
 		proofRequest := types.CreateProofRequest{
@@ -72,7 +68,7 @@ func TestGenerateProof(t *testing.T) {
 
 		issuerHexId := "0x" + hex.EncodeToString(issuerID.BigInt().Bytes())
 
-		response, _ := http.Get(zkpGen.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/identity/state/" + issuerHexId)
+		response, _ := http.Get(identity.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/identity/state/" + issuerHexId)
 
 		stateInfoResponse := StateInfoResponse{}
 
@@ -109,7 +105,7 @@ func TestGenerateProof(t *testing.T) {
 			Operation Operation `json:"operation"`
 		}
 
-		response, _ = http.Get(zkpGen.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/rarimocore/operation/" + stateInfoResponse.State.LastUpdateOperationIndex)
+		response, _ = http.Get(identity.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/rarimocore/operation/" + stateInfoResponse.State.LastUpdateOperationIndex)
 
 		operationResponse := OperationResponse{}
 
@@ -117,10 +113,24 @@ func TestGenerateProof(t *testing.T) {
 			t.Errorf("Error decoding response: %v", err)
 		}
 
-		_, err := zkpGen.GenerateProof(stateInfoResponse.State.Hash, operationResponse.Operation.Details.GISTHash, *vc, proofRequest, circuitPair)
+		atomicQueryMTPV2OnChainProof := AtomicQueryMTPV2OnChainProof{
+			Identity: identity,
+
+			CoreStateHash:     stateInfoResponse.State.Hash,
+			OperationGistHash: operationResponse.Operation.Details.GISTHash,
+			VC:                *vc,
+			ProofRequest:      proofRequest,
+			Circuits:          circuitPair,
+		}
+
+		zkProof, err := atomicQueryMTPV2OnChainProof.GenerateProof()
 
 		if err != nil {
 			t.Errorf("Error: %v", err)
+		}
+
+		if len(zkProof.PubSignals) == 0 {
+			t.Errorf("PubSignals should not be empty")
 		}
 	})
 }

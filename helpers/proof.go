@@ -238,8 +238,6 @@ func ConvertProofRequestToCircuitQuery(vc *overrides.W3CCredential, request *typ
 		return nil, errors.Wrap(err, "failed to merklize")
 	}
 
-	var schemaJson []byte
-
 	docLoader := loaders.NewDocumentLoader(nil, "", loaders.WithHTTPClient(&http.Client{}))
 
 	remoteDocument, err := docLoader.LoadDocument(vc.Context[2])
@@ -254,14 +252,11 @@ func ConvertProofRequestToCircuitQuery(vc *overrides.W3CCredential, request *typ
 		return nil, errors.Wrap(err, "failed to marshal document")
 	}
 
-	// TODO: check if this is correct
-	schemaJson = marshaledDocument
-
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load remote document")
 	}
 
-	path, err := merklize.NewFieldPathFromContext(schemaJson, vc.Type[1], request.Query.SubjectFieldName)
+	path, err := merklize.NewFieldPathFromContext(marshaledDocument, vc.Type[1], request.Query.SubjectFieldName)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create field path")

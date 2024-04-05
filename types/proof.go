@@ -4,6 +4,7 @@ import (
 	"github.com/iden3/go-circuits/v2"
 )
 
+// ClaimOffer Data to retrieve from issuer to generate AuthProof and get Verifiable Credentials
 type ClaimOffer struct {
 	Body struct {
 		Credentials []struct {
@@ -20,6 +21,7 @@ type ClaimOffer struct {
 	Type     string  `json:"type"`
 }
 
+// ProofQuery Data to build circuits.Query
 type ProofQuery struct {
 	SubjectFieldName  string `json:"subjectFieldName"`
 	Operator          int    `json:"operator"`
@@ -28,6 +30,7 @@ type ProofQuery struct {
 	Type []string `json:"type"`
 }
 
+// CreateProofRequest Data to fill inputs for ZkpGen.GenerateProof
 type CreateProofRequest struct {
 	Id        string
 	CircuitId circuits.CircuitID

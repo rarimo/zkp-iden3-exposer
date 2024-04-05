@@ -17,48 +17,21 @@ import (
 	"time"
 )
 
-type ZkpGenConfig struct {
-	ChainInfo types.ChainZkpInfo
-}
-
-type ZkpGenCommonInputs struct {
-	//CircuitClaim      types.CircuitClaim
-	//Query             circuits.Query
-	//NodeAuxNonRev     types.NodeAuxValue
-	//ClaimNonRevStatus types.RevocationStatus
-	//Value             []string
-	//timestamp         *int
-}
-
-type ZkpGen struct {
-	Config   ZkpGenConfig
-	Identity *Identity
-}
-
-func NewZkpGen(config ZkpGenConfig, identity *Identity) *ZkpGen {
-	return &ZkpGen{
-		Config:   config,
-		Identity: identity,
-	}
-}
-
-func (z *ZkpGen) GenerateProof(
+func prepareCommonInputs(
 	coreStateHash string,
-	operationGistHash string,
 	vc overrides.W3CCredential,
 	proofRequest types.CreateProofRequest,
-	Circuits types.CircuitPair,
-) (*types2.ZKProof, error) {
+) (*circuits.ClaimWithMTPProof, *circuits.Query, error) {
 	jsonString, err := json.Marshal(vc.CredentialStatus)
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal credential status")
+		return nil, nil, errors.Wrap(err, "failed to marshal credential status")
 	}
 
 	var credStatus verifiable.CredentialStatus
 
 	if err = json.Unmarshal(jsonString, &credStatus); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal credential status")
+		return nil, nil, errors.Wrap(err, "failed to unmarshal credential status")
 	}
 
 	resolver := helpers.CredentialStatusResolver{
@@ -72,7 +45,7 @@ func (z *ZkpGen) GenerateProof(
 	revStatus, err := verifiable.ValidateCredentialStatus(nil, credStatus)
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to validate credential status")
+		return nil, nil, errors.Wrap(err, "failed to validate credential status")
 	}
 
 	circuitIdProofTypeMap := map[circuits.CircuitID]verifiable.ProofType{
@@ -85,13 +58,13 @@ func (z *ZkpGen) GenerateProof(
 	coreClaim, err := vc.GetCoreClaimFromProof(circuitIdProofTypeMap[proofRequest.CircuitId])
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get core claim from vc")
+		return nil, nil, errors.Wrap(err, "failed to get core claim from vc")
 	}
 
 	query, err := helpers.ConvertProofRequestToCircuitQuery(&vc, &proofRequest)
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to convert proof request to circuit query")
+		return nil, nil, errors.Wrap(err, "failed to convert proof request to circuit query")
 	}
 
 	claimWithMTPProof := circuits.ClaimWithMTPProof{}
@@ -101,7 +74,7 @@ func (z *ZkpGen) GenerateProof(
 	issuerDID, err := w3c.ParseDID(vc.Issuer)
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse issuer DID")
+		return nil, nil, errors.Wrap(err, "failed to parse issuer DID")
 	}
 
 	issuerID, err := core.IDFromDID(*issuerDID)
@@ -109,7 +82,7 @@ func (z *ZkpGen) GenerateProof(
 	claimWithMTPProof.IssuerID = &issuerID
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get ID from DID")
+		return nil, nil, errors.Wrap(err, "failed to get ID from DID")
 	}
 
 	smtProof := overrides.Iden3SparseMerkleTreeProof{}
@@ -119,11 +92,11 @@ func (z *ZkpGen) GenerateProof(
 			encodedProof, err := json.Marshal(proof)
 
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to marshal proof")
+				return nil, nil, errors.Wrap(err, "failed to marshal proof")
 			}
 
 			if err := json.Unmarshal(encodedProof, &smtProof); err != nil {
-				return nil, errors.Wrap(err, "failed to unmarshal proof")
+				return nil, nil, errors.Wrap(err, "failed to unmarshal proof")
 			}
 		}
 	}
@@ -131,13 +104,13 @@ func (z *ZkpGen) GenerateProof(
 	stateHashEndian, err := helpers.ConvertEndianSwappedCoreStateHashHex(coreStateHash)
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to convert endian swapped core state hash")
+		return nil, nil, errors.Wrap(err, "failed to convert endian swapped core state hash")
 	}
 
 	smtRevStatus, err := helpers.GetRevocationStatus(smtProof.ID, stateHashEndian)
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get revocation status")
+		return nil, nil, errors.Wrap(err, "failed to get revocation status")
 	}
 
 	smtRevStatusTreeState, err := helpers.BuildTreeState(
@@ -162,7 +135,7 @@ func (z *ZkpGen) GenerateProof(
 	)
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to build rev status issuer tree state")
+		return nil, nil, errors.Wrap(err, "failed to build rev status issuer tree state")
 	}
 
 	claimWithMTPProof.NonRevProof = circuits.MTProof{
@@ -170,51 +143,39 @@ func (z *ZkpGen) GenerateProof(
 		TreeState: *revStatusIssuerTreeState,
 	}
 
-	// TODO: implement map
-	encodedInputs, err := z.prepareAtomicQueryMTPV2OnChainInputs(
-		operationGistHash,
-		claimWithMTPProof,
-		proofRequest,
-		*query,
-	)
-
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to prepare AtomicQueryMTPV2OnChain inputs")
-	}
-
-	zkProof, err := jwz.ProvingMethodGroth16AuthV2Instance.Prove(encodedInputs, Circuits.ProvingKey, Circuits.Wasm)
-
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create proof")
-	}
-
-	return zkProof, nil
+	return &claimWithMTPProof, query, nil
 }
 
-func (z *ZkpGen) prepareAtomicQueryMTPV2OnChainInputs(
-	operationGistHash string,
-	claimWithMTPProof circuits.ClaimWithMTPProof,
-	proofRequest types.CreateProofRequest,
-	query circuits.Query,
-) ([]byte, error) {
-	userId, err := z.Identity.ID()
+type AtomicQueryMTPV2OnChainProof struct {
+	Identity Identity
+
+	CoreStateHash     string
+	OperationGistHash string
+	VC                overrides.W3CCredential
+	ProofRequest      types.CreateProofRequest
+	Circuits          types.CircuitPair
+}
+
+func (a *AtomicQueryMTPV2OnChainProof) GenerateProof() (*types2.ZKProof, error) {
+	claimWithMTPProof, query, err := prepareCommonInputs(a.CoreStateHash, a.VC, a.ProofRequest)
+
+	userId, err := a.Identity.ID()
 
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get ID")
 	}
 
-	// TODO: check if this is correct
 	operationGistHashBigInt := new(big.Int)
 
-	operationGistHashBigInt.SetString(operationGistHash, 16)
+	operationGistHashBigInt.SetString(a.OperationGistHash, 16)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get hash from operationGistHash hex")
 	}
 
 	gistProofRaw, err := helpers.GetGISTProof(
-		z.Identity.Config.ChainInfo.CoreEvmRpcApiUrl,
-		z.Identity.Config.ChainInfo.CoreStateContractAddress,
+		a.Identity.Config.ChainInfo.CoreEvmRpcApiUrl,
+		a.Identity.Config.ChainInfo.CoreStateContractAddress,
 		userId.BigInt(),
 		operationGistHashBigInt,
 	)
@@ -229,7 +190,7 @@ func (z *ZkpGen) prepareAtomicQueryMTPV2OnChainInputs(
 		return nil, errors.Wrap(err, "failed to get GIST proof")
 	}
 
-	hexDecodedChallenge, err := hex.DecodeString(proofRequest.Challenge)
+	hexDecodedChallenge, err := hex.DecodeString(a.ProofRequest.Challenge)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode challenge hex")
@@ -237,12 +198,12 @@ func (z *ZkpGen) prepareAtomicQueryMTPV2OnChainInputs(
 
 	challenge := helpers.FromLittleEndian(hexDecodedChallenge)
 
-	signature := z.Identity.PrivateKey.SignPoseidon(challenge)
+	signature := a.Identity.PrivateKey.SignPoseidon(challenge)
 
 	requestId := big.NewInt(0)
 
-	if &proofRequest.Id != nil {
-		requestId.SetString(proofRequest.Id, 10)
+	if &a.ProofRequest.Id != nil {
+		requestId.SetString(a.ProofRequest.Id, 10)
 	}
 
 	mtpv2OnchainInputs := circuits.AtomicQueryMTPV2OnChainInputs{
@@ -250,24 +211,24 @@ func (z *ZkpGen) prepareAtomicQueryMTPV2OnChainInputs(
 		ProfileNonce:             big.NewInt(0),
 		ClaimSubjectProfileNonce: big.NewInt(0),
 
-		Claim:                    claimWithMTPProof,
+		Claim:                    *claimWithMTPProof,
 		SkipClaimRevocationCheck: false,
 
 		RequestID: requestId,
 
 		CurrentTimeStamp: time.Now().Unix(),
 
-		AuthClaim:          z.Identity.CoreAuthClaim,
-		AuthClaimIncMtp:    z.Identity.AuthClaimIncProof,
-		AuthClaimNonRevMtp: z.Identity.AuthClaimNonRevProof,
-		TreeState:          *z.Identity.TreeState,
+		AuthClaim:          a.Identity.CoreAuthClaim,
+		AuthClaimIncMtp:    a.Identity.AuthClaimIncProof,
+		AuthClaimNonRevMtp: a.Identity.AuthClaimNonRevProof,
+		TreeState:          *a.Identity.TreeState,
 
 		GISTProof: *gistProof,
 
 		Signature: signature,
 		Challenge: challenge,
 
-		Query: query,
+		Query: *query,
 	}
 
 	encodedInputs, err := mtpv2OnchainInputs.InputsMarshal()
@@ -276,5 +237,11 @@ func (z *ZkpGen) prepareAtomicQueryMTPV2OnChainInputs(
 		return nil, errors.Wrap(err, "failed to marshal inputs")
 	}
 
-	return encodedInputs, nil
+	zkProof, err := jwz.ProvingMethodGroth16AuthV2Instance.Prove(encodedInputs, a.Circuits.ProvingKey, a.Circuits.Wasm)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create proof")
+	}
+
+	return zkProof, nil
 }
