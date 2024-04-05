@@ -156,6 +156,24 @@ type AtomicQueryMTPV2OnChainProof struct {
 	Circuits          types.CircuitPair
 }
 
+func NewAtomicQueryMTPV2OnChainProof(
+	identity Identity,
+	coreStateHash string,
+	operationGistHash string,
+	vc overrides.W3CCredential,
+	proofRequest types.CreateProofRequest,
+	circuits types.CircuitPair,
+) *AtomicQueryMTPV2OnChainProof {
+	return &AtomicQueryMTPV2OnChainProof{
+		Identity:          identity,
+		CoreStateHash:     coreStateHash,
+		OperationGistHash: operationGistHash,
+		VC:                vc,
+		ProofRequest:      proofRequest,
+		Circuits:          circuits,
+	}
+}
+
 func (a *AtomicQueryMTPV2OnChainProof) GenerateProof() (*types2.ZKProof, error) {
 	claimWithMTPProof, query, err := prepareCommonInputs(a.CoreStateHash, a.VC, a.ProofRequest)
 

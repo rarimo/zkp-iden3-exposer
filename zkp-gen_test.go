@@ -113,15 +113,15 @@ func TestGenerateProof(t *testing.T) {
 			t.Errorf("Error decoding response: %v", err)
 		}
 
-		atomicQueryMTPV2OnChainProof := AtomicQueryMTPV2OnChainProof{
-			Identity: identity,
+		atomicQueryMTPV2OnChainProof := NewAtomicQueryMTPV2OnChainProof(
+			identity,
 
-			CoreStateHash:     stateInfoResponse.State.Hash,
-			OperationGistHash: operationResponse.Operation.Details.GISTHash,
-			VC:                *vc,
-			ProofRequest:      proofRequest,
-			Circuits:          circuitPair,
-		}
+			stateInfoResponse.State.Hash,
+			operationResponse.Operation.Details.GISTHash,
+			*vc,
+			proofRequest,
+			circuitPair,
+		)
 
 		zkProof, err := atomicQueryMTPV2OnChainProof.GenerateProof()
 
