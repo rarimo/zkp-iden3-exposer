@@ -13,25 +13,11 @@ import (
 	"strings"
 )
 
-type AuthZkpConfig struct {
-	ChainInfo types.ChainZkpInfo
-	// TODO: mb use files straight away
-	Circuits types.CircuitPair
-}
-
-type AuthZkp struct {
-	Config   AuthZkpConfig
-	Identity Identity
-}
-
-func NewAuthZkp(config AuthZkpConfig, identity Identity) *AuthZkp {
-	return &AuthZkp{
-		Config:   config,
-		Identity: identity,
-	}
-}
-
-func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*overrides.W3CCredential, error) {
+func GetVerifiableCredentials(
+	identity Identity,
+	claimOffer types.ClaimOffer,
+	circuitsPair types.CircuitPair,
+) (*overrides.W3CCredential, error) {
 	type ClaimDetailsBody struct {
 		Id string `json:"id"`
 	}
@@ -97,7 +83,7 @@ func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*overri
 	}
 
 	preparer := jwz.ProofInputsPreparerHandlerFunc(func(hash []byte, circuitID circuits.CircuitID) ([]byte, error) {
-		return a.Identity.PrepareAuthV2Inputs(hash, circuitID)
+		return identity.PrepareAuthV2Inputs(hash, circuitID)
 	})
 
 	token, err := jwz.NewWithPayload(
@@ -110,7 +96,7 @@ func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*overri
 		return nil, err
 	}
 
-	jwzTokenRaw, err := token.Prove(a.Config.Circuits.ProvingKey, a.Config.Circuits.Wasm)
+	jwzTokenRaw, err := token.Prove(circuitsPair.ProvingKey, circuitsPair.Wasm)
 
 	if err != nil {
 		return nil, err

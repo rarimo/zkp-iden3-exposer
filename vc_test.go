@@ -70,12 +70,7 @@ func GetVC(identity Identity, offer types.ClaimOffer) (*overrides.W3CCredential,
 		ProvingKey: provingKeyFileBytes,
 	}
 
-	authZkp := NewAuthZkp(AuthZkpConfig{
-		ChainInfo: identity.Config.ChainInfo,
-		Circuits:  circuits,
-	}, identity)
-
-	vc, err := authZkp.GetVerifiableCredentials(offer)
+	vc, err := GetVerifiableCredentials(identity, offer, circuits)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting vc")
