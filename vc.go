@@ -1,36 +1,23 @@
-package instances
+package zkp_iden3
 
 import (
 	"encoding/json"
 	"github.com/google/uuid"
-	"github.com/iden3/go-circuits"
-	"github.com/iden3/go-jwz"
+	"github.com/iden3/go-circuits/v2"
+	"github.com/iden3/go-jwz/v2"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
+	"github.com/rarimo/zkp-iden3-exposer/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"net/http"
 	"strings"
 )
 
-type AuthZkpConfig struct {
-	ChainInfo types.ChainZkpInfo
-	// TODO: mb use files straight away
-	Circuits types.CircuitPair
-}
-
-type AuthZkp struct {
-	Config   AuthZkpConfig
-	Identity Identity
-}
-
-func NewAuthZkp(config AuthZkpConfig, identity Identity) *AuthZkp {
-	return &AuthZkp{
-		Config:   config,
-		Identity: identity,
-	}
-}
-
-// TODO: create W3Credential type
-func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*types.W3CCredential, error) {
+func GetVerifiableCredentials(
+	identity Identity,
+	claimOffer types.ClaimOffer,
+	circuitsPair types.CircuitPair,
+) (*overrides.W3CCredential, error) {
 	type ClaimDetailsBody struct {
 		Id string `json:"id"`
 	}
@@ -96,7 +83,7 @@ func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*types.
 	}
 
 	preparer := jwz.ProofInputsPreparerHandlerFunc(func(hash []byte, circuitID circuits.CircuitID) ([]byte, error) {
-		return a.Identity.PrepareAuthV2Inputs(hash, circuitID)
+		return identity.PrepareAuthV2Inputs(hash, circuitID)
 	})
 
 	token, err := jwz.NewWithPayload(
@@ -109,7 +96,7 @@ func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*types.
 		return nil, err
 	}
 
-	jwzTokenRaw, err := token.Prove(a.Config.Circuits.ProvingKey, a.Config.Circuits.Wasm)
+	jwzTokenRaw, err := token.Prove(circuitsPair.ProvingKey, circuitsPair.Wasm)
 
 	if err != nil {
 		return nil, err
@@ -127,11 +114,19 @@ func (a *AuthZkp) GetVerifiableCredentials(claimOffer types.ClaimOffer) (*types.
 
 	defer response.Body.Close()
 
-	agentResponse := types.AgentResponse{}
+	type AgentResponse struct {
+		Body struct {
+			Credential overrides.W3CCredential `json:"credential"`
+		} `json:"body"`
+	}
+
+	agentResponse := AgentResponse{}
 
 	if err := json.NewDecoder(response.Body).Decode(&agentResponse); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal")
 	}
+
+	agentResponse.Body.Credential.W3CCredential.Proof = verifiable.CredentialProofs(agentResponse.Body.Credential.Proof)
 
 	return &agentResponse.Body.Credential, nil
 }
