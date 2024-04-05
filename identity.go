@@ -58,28 +58,24 @@ func NewIdentity(config IdentityConfig, privateKeyHex *string) (*Identity, error
 	revocationsDB := merkletree_db_memory.NewMemoryStorage() //.WithPrefix([]byte("revocations"))
 	rootsDB := merkletree_db_memory.NewMemoryStorage()       //.WithPrefix([]byte("roots"))
 
-	// TODO: wtf is context?
 	claimsTree, err := merkletree.NewMerkleTree(nil, claimsDB, 32)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: wtf is context?
 	revocationsTree, err := merkletree.NewMerkleTree(nil, revocationsDB, 32)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: wtf is context?
 	rootsTree, err := merkletree.NewMerkleTree(nil, rootsDB, 32)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: wtf is context?
 	err = claimsTree.Add(nil, hi, hv)
 
 	if err != nil {
@@ -110,7 +106,6 @@ func NewIdentity(config IdentityConfig, privateKeyHex *string) (*Identity, error
 		return nil, err
 	}
 
-	// TODO: wtf is context?
 	authClaimIncProof, _, err := claimsTree.GenerateProof(nil, coreAuthClaimHIndex, claimsTreeRoot)
 
 	if err != nil {
@@ -122,7 +117,7 @@ func NewIdentity(config IdentityConfig, privateKeyHex *string) (*Identity, error
 	authClaimIncProofSiblings := helpers.PrepareSiblingsStr(*authClaimIncProof, constants.DefaultMTLevels)
 
 	authClaimNonRevProof, _, err := revocationsTree.GenerateProof(
-		// TODO: wtf is context?
+
 		nil,
 		new(big.Int).SetUint64(identity.CoreAuthClaim.GetRevocationNonce()),
 		revocationsTreeRoot,

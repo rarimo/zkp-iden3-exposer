@@ -23,5 +23,3 @@ func InitSK(skHex *string) (*babyjub.PrivateKey, error) {
 
 	return &sk, nil
 }
-
-// TODO: ParseDid will come from the identity package

@@ -88,7 +88,7 @@ func (z *ZkpGen) GenerateProof(
 		return nil, errors.Wrap(err, "failed to get core claim from vc")
 	}
 
-	query, err := helpers.ConvertProofRequestToCircuitQuery(&proofRequest)
+	query, err := helpers.ConvertProofRequestToCircuitQuery(&vc, &proofRequest)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to convert proof request to circuit query")
@@ -175,7 +175,7 @@ func (z *ZkpGen) GenerateProof(
 		operationGistHash,
 		claimWithMTPProof,
 		proofRequest,
-		query,
+		*query,
 	)
 
 	if err != nil {

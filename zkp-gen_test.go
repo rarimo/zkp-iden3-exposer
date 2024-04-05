@@ -37,6 +37,11 @@ func TestGenerateProof(t *testing.T) {
 		proofRequest := types.CreateProofRequest{
 			CircuitId: circuits.AtomicQueryMTPV2OnChainCircuitID,
 			Challenge: accountAddress[2:],
+			Query: types.ProofQuery{
+				SubjectFieldName:  "isNatural",
+				SubjectFieldValue: "1",
+				Operator:          circuits.EQ,
+			},
 		}
 
 		circuitPair := types.CircuitPair{}
@@ -112,7 +117,7 @@ func TestGenerateProof(t *testing.T) {
 			t.Errorf("Error decoding response: %v", err)
 		}
 
-		_, err = zkpGen.GenerateProof(stateInfoResponse.State.Hash, operationResponse.Operation.Details.GISTHash, *vc, proofRequest, circuitPair)
+		_, err := zkpGen.GenerateProof(stateInfoResponse.State.Hash, operationResponse.Operation.Details.GISTHash, *vc, proofRequest, circuitPair)
 
 		if err != nil {
 			t.Errorf("Error: %v", err)

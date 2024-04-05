@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/iden3/go-circuits/v2"
 	"github.com/iden3/go-merkletree-sql/v2"
+	"github.com/iden3/go-schema-processor/v2/loaders"
 	"github.com/iden3/go-schema-processor/v2/merklize"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
@@ -216,8 +217,9 @@ func ConvertProofRequestToCircuitQuery(vc *overrides.W3CCredential, request *typ
 	}
 
 	query := circuits.Query{
-		Operator: request.Query.Operator,
-		Values:   []*big.Int{value},
+		Operator:  request.Query.Operator,
+		Values:    []*big.Int{value},
+		SlotIndex: 0,
 	}
 
 	vcCopy := *vc
@@ -236,8 +238,28 @@ func ConvertProofRequestToCircuitQuery(vc *overrides.W3CCredential, request *typ
 		return nil, errors.Wrap(err, "failed to merklize")
 	}
 
-	// TODO: load schemaJSON from vc.Context
 	var schemaJson []byte
+
+	docLoader := loaders.NewDocumentLoader(nil, "", loaders.WithHTTPClient(&http.Client{}))
+
+	remoteDocument, err := docLoader.LoadDocument(vc.Context[2])
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load remote document")
+	}
+
+	marshaledDocument, err := json.Marshal(remoteDocument.Document)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal document")
+	}
+
+	// TODO: check if this is correct
+	schemaJson = marshaledDocument
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load remote document")
+	}
 
 	path, err := merklize.NewFieldPathFromContext(schemaJson, vc.Type[1], request.Query.SubjectFieldName)
 
@@ -306,14 +328,11 @@ func ConvertProofRequestToCircuitQuery(vc *overrides.W3CCredential, request *typ
 		},
 	)
 
-	valueProof := &circuits.ValueProof{
+	query.ValueProof = &circuits.ValueProof{
 		Path:  pathKey,
 		MTP:   valueProofMTP,
 		Value: mtEntry,
 	}
-
-	query.ValueProof = valueProof
-	query.SlotIndex = 0
 
 	return &query, nil
 }
