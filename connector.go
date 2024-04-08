@@ -72,12 +72,10 @@ func GetIdentity(pkHex string) ([]byte, error) {
 	return identityJson, nil
 }
 
-func SaveCredentials(
+func GetAuthV2Inputs(
 	privateKeyHex string,
 	issuerApi string,
 	claimType string,
-	provingKey []byte,
-	wasm []byte,
 ) ([]byte, error) {
 	if privateKeyHex == "" || &privateKeyHex == nil {
 		return nil, errors.New("Private key is required")
@@ -85,22 +83,13 @@ func SaveCredentials(
 
 	identity := getIdentity(&privateKeyHex)
 
-	circuits := types.CircuitPair{
-		Wasm:       wasm,
-		ProvingKey: provingKey,
-	}
-
 	offer, err := getOffer(issuerApi, &identity, claimType)
 
-	vc, err := instances.GetVerifiableCredentials(identity, offer, circuits)
-
 	if err != nil {
-		return nil, errors.Wrap(err, "Error getting vc")
+		return nil, errors.Wrap(err, "Error getting offer")
 	}
 
-	jsonVC, err := json.Marshal(vc)
-
-	return jsonVC, nil
+	return instances.GetAuthV2Inputs(identity, offer)
 }
 
 //func CreateProof(

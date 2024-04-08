@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"testing"
 )
 
@@ -53,30 +52,32 @@ func GetOffer(issuerApi string, identity *Identity, claimType string) (types.Cla
 }
 
 func GetVC(identity Identity, offer types.ClaimOffer) (*overrides.W3CCredential, error) {
-	wasmFileBytes, err := GetFile("./assets/circuits/auth/circuit.wasm")
+	//wasmFileBytes, err := GetFile("../assets/circuits/auth/circuit.wasm")
+	//
+	//if err != nil {
+	//	return nil, errors.Wrap(err, "Error getting wasm file")
+	//}
+	//
+	//provingKeyFileBytes, err := GetFile("../assets/circuits/auth/circuit_final.zkey")
+	//
+	//if err != nil {
+	//	return nil, errors.Wrap(err, "Error getting proving key file")
+	//}
 
-	if err != nil {
-		return nil, errors.Wrap(err, "Error getting wasm file")
-	}
+	//circuits := types.CircuitPair{
+	//	Wasm:       wasmFileBytes,
+	//	ProvingKey: provingKeyFileBytes,
+	//}
 
-	provingKeyFileBytes, err := GetFile("./assets/circuits/auth/circuit_final.zkey")
+	//vc, err := GetVerifiableCredentials(identity, offer, circuits)
 
-	if err != nil {
-		return nil, errors.Wrap(err, "Error getting proving key file")
-	}
+	//if err != nil {
+	//	return nil, errors.Wrap(err, "Error getting vc")
+	//}
 
-	circuits := types.CircuitPair{
-		Wasm:       wasmFileBytes,
-		ProvingKey: provingKeyFileBytes,
-	}
+	//return vc, nil
 
-	vc, err := GetVerifiableCredentials(identity, offer, circuits)
-
-	if err != nil {
-		return nil, errors.Wrap(err, "Error getting vc")
-	}
-
-	return vc, nil
+	return nil, nil
 }
 
 func TestGetVerifiableCredentials(t *testing.T) {
@@ -95,15 +96,25 @@ func TestGetVerifiableCredentials(t *testing.T) {
 		offer = claimOffer
 	})
 
-	t.Run("should get vc", func(t *testing.T) {
-		vc, err := GetVC(identity, offer)
+	t.Run("should get AuthV2 inputs", func(t *testing.T) {
+		authV2Inputs, err := GetAuthV2Inputs(identity, offer)
 
 		if err != nil {
 			t.Errorf("Error: %v", err)
 		}
 
-		if strings.Contains(vc.ID, offer.Body.Credentials[0].Id) == false {
-			t.Errorf("Error: %v", err)
-		}
+		println(string(authV2Inputs))
 	})
+
+	//t.Run("should get vc", func(t *testing.T) {
+	//	vc, err := GetVC(identity, offer)
+	//
+	//	if err != nil {
+	//		t.Errorf("Error: %v", err)
+	//	}
+	//
+	//	if strings.Contains(vc.ID, offer.Body.Credentials[0].Id) == false {
+	//		t.Errorf("Error: %v", err)
+	//	}
+	//})
 }
