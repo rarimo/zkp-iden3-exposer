@@ -1,0 +1,87 @@
+{
+  "id": "https://issuer.polygon.robotornot.mainnet-beta.rarimo.com/v1/credentials/ffe23fa2-dfa6-11ee-b1f8-220bd8de42d4",
+  "@context": [
+    "https://ipfs.rarimo.com/ipfs/QmYCGiCoDn9WVoSwUBA8XLhgjzbeYLWZPfoM3scdtkWpfF",
+    "https://schema.iden3.io/core/jsonld/iden3proofs.jsonld",
+    "https://ipfs.rarimo.com/ipfs/QmWP3bM4oBoD26zrjeGas9v3as6cgpG1hhCPZhySsPuNiH"
+  ],
+  "type": [
+    "VerifiableCredential",
+    "IdentityProviders"
+  ],
+  "issuanceDate": "2024-03-11T12:58:04.565932564Z",
+  "credentialSubject": {
+    "address": "0x4419B9C6D9A4C346CB0ebA756dB1D1262D3612B6",
+    "id": "did:iden3:readonly:tSpQ56dBXo3Druez8wAbTTqd9yV1K2q4TwFu2taQj",
+    "isNatural": 1,
+    "provider": "Kleros",
+    "providerMetadata": "none",
+    "type": "IdentityProviders"
+  },
+  "credentialStatus": {
+    "id": "https://issuer.polygon.robotornot.mainnet-beta.rarimo.com/v1/credentials/revocation/status/3544331502",
+    "revocationNonce": 3544331502,
+    "type": "SparseMerkleTreeProof"
+  },
+  "issuer": "did:iden3:readonly:tLd8sbb1xTSvi2wtRF4TUVcfDUr8ppYMohLqjhGQT",
+  "credentialSchema": {
+    "id": "https://ipfs.rarimo.com/ipfs/QmPC6cerSfgk9mYqQtEB8SE9UAsQRiPPNKjVJu2byWkNPW",
+    "type": "JsonSchema2023"
+  },
+  "proof": [
+    {
+      "type": "BJJSignature2021",
+      "issuerData": {
+        "id": "did:iden3:tLd8sbb1xTSvi2wtRF4TUVcfDUr8ppYMohLqjhGQT",
+        "updateUrl": "https://issuer.polygon.robotornot.mainnet-beta.rarimo.com/v1/claims/a780d2fd-22ec-435e-8f05-eae04205c2d9/mtp",
+        "state": {
+          "claimsTreeRoot": "9747653320df0cd590ee5b84f87bbbe2c3b286b62ba9a1645cda0d6d59742024",
+          "value": "cd96cf691736b9bd8904bd7c8908a1fb634062297c94017175a9542de8fbac0a"
+        },
+        "authCoreClaim": "cca3371a6cb1b715004407e325bd993c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000009b96a8f6eeb9cca85294c178d2ea6cc3d971e806b26f313cac4308eebbd00b0b8dc52c8622de9aee96eff59fde209fc688c76a638029a7cdb1b9010c249737090000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "mtp": {
+          "existence": true,
+          "siblings": []
+        },
+        "credentialStatus": {
+          "id": "https://api.robotornot.mainnet-beta.rarimo.com/v1/did%3Aiden3%3Areadonly%3AtLd8sbb1xTSvi2wtRF4TUVcfDUr8ppYMohLqjhGQT/claims/revocation/status/0",
+          "revocationNonce": 0,
+          "type": "SparseMerkleTreeProof"
+        }
+      },
+      "coreClaim": "11d9dcf5ebe39bd8b48f0d9e2d813214220000000000000000000000000000000100bf2b88c4dd0ac112ac274ae6e4866e355d72a5912a3fca7fb86d20fd0c0035f58ba792c4a2e35ae8694beba76664340768f98b74288e9a37608afdc107250000000000000000000000000000000000000000000000000000000000000000ee3442d300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "signature": "4f210b2e8190125112d647ae6fd4c44b8016fc16cf370df509715bc4740f381a33f0548e03ee80584bcd8ab21be98b02141e7d7a71a82adf5d26a6a20998d802"
+    },
+    {
+      "id": "https://issuer.polygon.robotornot.mainnet-beta.rarimo.com/v1/claims/ffe23fa2-dfa6-11ee-b1f8-220bd8de42d4/mtp",
+      "type": "Iden3SparseMerkleTreeProof",
+      "issuerData": {
+        "id": "did:iden3:readonly:tLd8sbb1xTSvi2wtRF4TUVcfDUr8ppYMohLqjhGQT",
+        "updateUrl": "https://issuer.polygon.robotornot.mainnet-beta.rarimo.com/v1/claims/a780d2fd-22ec-435e-8f05-eae04205c2d9/mtp",
+        "state": {
+          "txId": "0xed7e654b92beea0db9f78c4dd9c576a99c6b8e96a7be7283010cd5f8deefa6a6",
+          "blockTimestamp": 1710161892,
+          "blockNumber": 3895867,
+          "rootOfRoots": "0ed03b4b12bdea250f2e28ff306a0356d87b3bcf8a6f8e75f627656d323fda21",
+          "claimsTreeRoot": "bbf3a0ac0993ae8f10f58915be997bac18cadf28d401f6e6db71d9ffceafd103",
+          "revocationTreeRoot": "71771ec82926543ff34826d6aca7bced2a30f54f97e08e7b4ea3aefad7cc721d",
+          "value": "42b89ecafe7808334ce10f078ded11c90384972527dd101010172dadb90d9317"
+        }
+      },
+      "coreClaim": "11d9dcf5ebe39bd8b48f0d9e2d813214220000000000000000000000000000000100bf2b88c4dd0ac112ac274ae6e4866e355d72a5912a3fca7fb86d20fd0c0035f58ba792c4a2e35ae8694beba76664340768f98b74288e9a37608afdc107250000000000000000000000000000000000000000000000000000000000000000ee3442d300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "mtp": {
+        "existence": true,
+        "siblings": [
+          "736346703097717234063429009023562789612255083383964370454335076542757127247",
+          "21166035368544071912959107724651433243740983478651612858029501906621252127887",
+          "3511024267390738253429045505626732017705723966368473338927541524235961142505",
+          "6717854778967832350030182659729816268353314999933363316150889707534417195874",
+          "20548277869213253686958332785806237313515816927211379085106700123296973291187",
+          "2819294292842104292410305847834337606717139692560666489377837958745565421232",
+          "12003209519541923845029870946009858301657140668901613774723155872202125010898",
+          "21360799424714339655331805003009007727719396119444153933778352699239982766756"
+        ]
+      }
+    }
+  ]
+}

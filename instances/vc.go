@@ -9,10 +9,7 @@ import (
 	"github.com/rarimo/zkp-iden3-exposer/types"
 )
 
-func GetClaimDetailsJson(
-	identity Identity,
-	claimOffer types.ClaimOffer,
-) ([]byte, error) {
+func GetClaimDetailsJson(claimOffer types.ClaimOffer) ([]byte, error) {
 	type ClaimDetailsBody struct {
 		Id string `json:"id"`
 	}
@@ -84,7 +81,7 @@ func GetAuthV2Inputs(
 	identity Identity,
 	claimOffer types.ClaimOffer,
 ) ([]byte, error) {
-	claimDetailsJson, err := GetClaimDetailsJson(identity, claimOffer)
+	claimDetailsJson, err := GetClaimDetailsJson(claimOffer)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting claim details")

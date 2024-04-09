@@ -1,9 +1,15 @@
 package zkp_iden3_exposer
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	"github.com/iden3/go-circuits/v2"
+	core "github.com/iden3/go-iden3-core/v2"
+	"github.com/iden3/go-iden3-core/v2/w3c"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/zkp-iden3-exposer/instances"
+	"github.com/rarimo/zkp-iden3-exposer/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"net/http"
 )
@@ -92,137 +98,124 @@ func GetAuthV2Inputs(
 	return instances.GetAuthV2Inputs(identity, offer)
 }
 
-//func CreateProof(
-//	privateKeyHex string,
-//	jsonVC []byte,
-//
-//	circuitId string,
-//	challenge string,
-//
-//	subjectFieldName string,
-//	subjectFieldValue string,
-//	operator int,
-//
-//	provingKey []byte,
-//	wasm []byte,
-//) ([]byte, error) {
-//	if privateKeyHex == "" || &privateKeyHex == nil {
-//		return nil, errors.New("Private key is required")
-//	}
-//
-//	identity := getIdentity(&privateKeyHex)
-//
-//	proofRequest := types.CreateProofRequest{
-//		CircuitId: circuits.CircuitID(circuitId),
-//		Challenge: challenge,
-//		Query: types.ProofQuery{
-//			SubjectFieldName:  subjectFieldName,
-//			SubjectFieldValue: subjectFieldValue,
-//			Operator:          operator,
-//		},
-//	}
-//
-//	circuitPair := types.CircuitPair{
-//		Wasm:       wasm,
-//		ProvingKey: provingKey,
-//	}
-//
-//	vc := overrides.W3CCredential{}
-//
-//	if err := json.Unmarshal(jsonVC, &vc); err != nil {
-//		return nil, errors.Wrap(err, "Error unmarshalling vc")
-//	}
-//
-//	type StateInfo struct {
-//		Index                    string `json:"index"`
-//		Hash                     string `json:"hash"`
-//		CreatedAtTimestamp       string `json:"createdAtTimestamp"`
-//		CreatedAtBlock           string `json:"createdAtBlock"`
-//		LastUpdateOperationIndex string `json:"lastUpdateOperationIndex"`
-//	}
-//
-//	type StateInfoResponse struct {
-//		State StateInfo `json:"state"`
-//	}
-//
-//	issuerDID, _ := w3c.ParseDID(vc.Issuer)
-//
-//	issuerID, _ := core.IDFromDID(*issuerDID)
-//
-//	issuerHexId := "0x" + hex.EncodeToString(issuerID.BigInt().Bytes())
-//
-//	response, _ := http.Get(identity.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/identity/state/" + issuerHexId)
-//
-//	stateInfoResponse := StateInfoResponse{}
-//
-//	if err := json.NewDecoder(response.Body).Decode(&stateInfoResponse); err != nil {
-//		return nil, errors.Wrap(err, "Error decoding response")
-//	}
-//
-//	type OperationStatus string
-//
-//	const (
-//		Signed      OperationStatus = "SIGNED"
-//		Initialized OperationStatus = "INITIALIZED"
-//		Approved    OperationStatus = "APPROVED"
-//		NotApproved OperationStatus = "NOT_APPROVED"
-//	)
-//
-//	type Operation struct {
-//		Index         string `json:"index"`
-//		OperationType string `json:"operationType"`
-//		Details       struct {
-//			AtType        string `json:"@type"`
-//			Contract      string `json:"contract"`
-//			Chain         string `json:"chain"`
-//			GISTHash      string `json:"GISTHash"`
-//			StateRootHash string `json:"stateRootHash"`
-//			Timestamp     string `json:"timestamp"`
-//		} `json:"details"`
-//		Status    OperationStatus `json:"status"`
-//		Creator   string          `json:"creator"`
-//		Timestamp string          `json:"timestamp"`
-//	}
-//
-//	type OperationResponse struct {
-//		Operation Operation `json:"operation"`
-//	}
-//
-//	response, _ = http.Get(identity.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/rarimocore/operation/" + stateInfoResponse.State.LastUpdateOperationIndex)
-//
-//	operationResponse := OperationResponse{}
-//
-//	if err := json.NewDecoder(response.Body).Decode(&operationResponse); err != nil {
-//		return nil, errors.Wrap(err, "Error decoding operation response")
-//	}
-//
-//	atomicQueryMTPV2OnChainProof := instances.NewAtomicQueryMTPV2OnChainProof(
-//		identity,
-//
-//		stateInfoResponse.State.Hash,
-//		operationResponse.Operation.Details.GISTHash,
-//		vc,
-//		proofRequest,
-//		circuitPair,
-//	)
-//
-//	zkProof, err := atomicQueryMTPV2OnChainProof.GenerateProof()
-//
-//	if err != nil {
-//		return nil, errors.Wrap(err, "Error generating proof")
-//	}
-//
-//	jsonZkProof, err := json.Marshal(zkProof)
-//
-//	if err != nil {
-//		return nil, errors.Wrap(err, "Error marshalling proof")
-//	}
-//
-//	return jsonZkProof, nil
-//}
+func GetAtomicQueryMTVV2OnChainInputs(
+	privateKeyHex string,
+	jsonVC []byte,
+
+	circuitId string,
+	challenge string,
+
+	subjectFieldName string,
+	subjectFieldValue string,
+	operator int,
+) ([]byte, error) {
+	if privateKeyHex == "" || &privateKeyHex == nil {
+		return nil, errors.New("Private key is required")
+	}
+
+	identity := getIdentity(&privateKeyHex)
+
+	proofRequest := types.CreateProofRequest{
+		CircuitId: circuits.CircuitID(circuitId),
+		Challenge: challenge,
+		Query: types.ProofQuery{
+			SubjectFieldName:  subjectFieldName,
+			SubjectFieldValue: subjectFieldValue,
+			Operator:          operator,
+		},
+	}
+
+	vc := overrides.W3CCredential{}
+
+	if err := json.Unmarshal(jsonVC, &vc); err != nil {
+		return nil, errors.Wrap(err, "Error unmarshalling vc")
+	}
+
+	vc.W3CCredential.Proof = verifiable.CredentialProofs(vc.Proof)
+
+	type StateInfo struct {
+		Index                    string `json:"index"`
+		Hash                     string `json:"hash"`
+		CreatedAtTimestamp       string `json:"createdAtTimestamp"`
+		CreatedAtBlock           string `json:"createdAtBlock"`
+		LastUpdateOperationIndex string `json:"lastUpdateOperationIndex"`
+	}
+
+	type StateInfoResponse struct {
+		State StateInfo `json:"state"`
+	}
+
+	issuerDID, _ := w3c.ParseDID(vc.Issuer)
+
+	issuerID, _ := core.IDFromDID(*issuerDID)
+
+	issuerHexId := "0x" + hex.EncodeToString(issuerID.BigInt().Bytes())
+
+	response, _ := http.Get(identity.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/identity/state/" + issuerHexId)
+
+	stateInfoResponse := StateInfoResponse{}
+
+	if err := json.NewDecoder(response.Body).Decode(&stateInfoResponse); err != nil {
+		return nil, errors.Wrap(err, "Error decoding response")
+	}
+
+	type OperationStatus string
+
+	const (
+		Signed      OperationStatus = "SIGNED"
+		Initialized OperationStatus = "INITIALIZED"
+		Approved    OperationStatus = "APPROVED"
+		NotApproved OperationStatus = "NOT_APPROVED"
+	)
+
+	type Operation struct {
+		Index         string `json:"index"`
+		OperationType string `json:"operationType"`
+		Details       struct {
+			AtType        string `json:"@type"`
+			Contract      string `json:"contract"`
+			Chain         string `json:"chain"`
+			GISTHash      string `json:"GISTHash"`
+			StateRootHash string `json:"stateRootHash"`
+			Timestamp     string `json:"timestamp"`
+		} `json:"details"`
+		Status    OperationStatus `json:"status"`
+		Creator   string          `json:"creator"`
+		Timestamp string          `json:"timestamp"`
+	}
+
+	type OperationResponse struct {
+		Operation Operation `json:"operation"`
+	}
+
+	response, _ = http.Get(identity.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/rarimocore/operation/" + stateInfoResponse.State.LastUpdateOperationIndex)
+
+	operationResponse := OperationResponse{}
+
+	if err := json.NewDecoder(response.Body).Decode(&operationResponse); err != nil {
+		return nil, errors.Wrap(err, "Error decoding operation response")
+	}
+
+	atomicQueryMTPV2OnChainProof := instances.NewAtomicQueryMTPV2OnChainProof(
+		identity,
+
+		stateInfoResponse.State.Hash,
+		operationResponse.Operation.Details.GISTHash,
+		vc,
+		proofRequest,
+	)
+
+	inputs, err := atomicQueryMTPV2OnChainProof.GetInputs()
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting inputs")
+	}
+
+	return inputs, nil
+}
 
 //func RemoveCredentials() {}
-//
+
 //func GetCredentials() {}
 
 //func CheckStateContractSync() {}

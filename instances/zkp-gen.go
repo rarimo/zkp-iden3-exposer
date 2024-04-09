@@ -6,10 +6,8 @@ import (
 	"github.com/iden3/go-circuits/v2"
 	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-iden3-core/v2/w3c"
-	types2 "github.com/iden3/go-rapidsnark/types"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
-	"github.com/rarimo/go-jwz"
 	"github.com/rarimo/zkp-iden3-exposer/helpers"
 	"github.com/rarimo/zkp-iden3-exposer/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/types"
@@ -162,7 +160,6 @@ func NewAtomicQueryMTPV2OnChainProof(
 	operationGistHash string,
 	vc overrides.W3CCredential,
 	proofRequest types.CreateProofRequest,
-	circuits types.CircuitPair,
 ) *AtomicQueryMTPV2OnChainProof {
 	return &AtomicQueryMTPV2OnChainProof{
 		Identity:          identity,
@@ -170,11 +167,10 @@ func NewAtomicQueryMTPV2OnChainProof(
 		OperationGistHash: operationGistHash,
 		VC:                vc,
 		ProofRequest:      proofRequest,
-		Circuits:          circuits,
 	}
 }
 
-func (a *AtomicQueryMTPV2OnChainProof) GenerateProof() (*types2.ZKProof, error) {
+func (a *AtomicQueryMTPV2OnChainProof) GetInputs() ([]byte, error) {
 	claimWithMTPProof, query, err := prepareCommonInputs(a.CoreStateHash, a.VC, a.ProofRequest)
 
 	userId, err := a.Identity.ID()
@@ -255,11 +251,5 @@ func (a *AtomicQueryMTPV2OnChainProof) GenerateProof() (*types2.ZKProof, error) 
 		return nil, errors.Wrap(err, "failed to marshal inputs")
 	}
 
-	zkProof, err := jwz.ProvingMethodGroth16AuthV2Instance.Prove(encodedInputs, a.Circuits.ProvingKey, a.Circuits.Wasm)
-
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create proof")
-	}
-
-	return zkProof, nil
+	return encodedInputs, nil
 }

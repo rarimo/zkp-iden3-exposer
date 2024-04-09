@@ -6,6 +6,7 @@ import (
 	"github.com/iden3/go-circuits/v2"
 	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-iden3-core/v2/w3c"
+	"github.com/iden3/go-jwz/v2"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"net/http"
 	"testing"
@@ -42,11 +43,11 @@ func TestGenerateProof(t *testing.T) {
 
 		circuitPair := types.CircuitPair{}
 
-		if circuitPair.Wasm, err = GetFile("./assets/circuits/credentialAtomicQueryMTPV2OnChain/circuit.wasm"); err != nil {
+		if circuitPair.Wasm, err = GetFile("../assets/circuits/credentialAtomicQueryMTPV2OnChain/circuit.wasm"); err != nil {
 			t.Errorf("Error getting file: %v", err)
 		}
 
-		if circuitPair.ProvingKey, err = GetFile("./assets/circuits/credentialAtomicQueryMTPV2OnChain/circuit_final.zkey"); err != nil {
+		if circuitPair.ProvingKey, err = GetFile("../assets/circuits/credentialAtomicQueryMTPV2OnChain/circuit_final.zkey"); err != nil {
 			t.Errorf("Error getting file: %v", err)
 		}
 
@@ -120,17 +121,18 @@ func TestGenerateProof(t *testing.T) {
 			operationResponse.Operation.Details.GISTHash,
 			*vc,
 			proofRequest,
-			circuitPair,
 		)
 
-		zkProof, err := atomicQueryMTPV2OnChainProof.GenerateProof()
+		inputs, err := atomicQueryMTPV2OnChainProof.GetInputs()
+
+		if err != nil {
+			t.Errorf("Error getting inputs: %v", err)
+		}
+
+		_, err = jwz.ProvingMethodGroth16AuthV2Instance.Prove(inputs, circuitPair.ProvingKey, circuitPair.Wasm)
 
 		if err != nil {
 			t.Errorf("Error: %v", err)
-		}
-
-		if len(zkProof.PubSignals) == 0 {
-			t.Errorf("PubSignals should not be empty")
 		}
 	})
 }

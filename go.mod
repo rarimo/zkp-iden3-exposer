@@ -8,8 +8,8 @@ require (
 	github.com/iden3/go-circuits/v2 v2.2.0
 	github.com/iden3/go-iden3-core/v2 v2.1.0
 	github.com/iden3/go-iden3-crypto v0.0.16
+	github.com/iden3/go-jwz/v2 v2.0.2
 	github.com/iden3/go-merkletree-sql/v2 v2.0.6
-	github.com/iden3/go-rapidsnark/types v0.0.3
 	github.com/iden3/go-schema-processor/v2 v2.3.3
 	github.com/pkg/errors v0.9.1
 	github.com/rarimo/go-jwz v1.0.3
@@ -32,6 +32,8 @@ require (
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/holiman/uint256 v1.2.3 // indirect
+	github.com/iden3/go-rapidsnark/prover v0.0.10 // indirect
+	github.com/iden3/go-rapidsnark/types v0.0.3 // indirect
 	github.com/iden3/go-rapidsnark/verifier v0.0.5 // indirect
 	github.com/iden3/go-rapidsnark/witness/v2 v2.0.0 // indirect
 	github.com/iden3/go-rapidsnark/witness/wazero v0.0.0-20230524142950-0986cf057d4e // indirect
@@ -46,7 +48,6 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	golang.org/x/crypto v0.12.0 // indirect
 	golang.org/x/exp v0.0.0-20230810033253-352e893a4cad // indirect
-	golang.org/x/mobile v0.0.0-20240404231514-09dbf07665ed // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect

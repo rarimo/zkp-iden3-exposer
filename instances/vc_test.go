@@ -2,12 +2,16 @@ package instances
 
 import (
 	"encoding/json"
+	"github.com/iden3/go-circuits/v2"
+	"github.com/iden3/go-jwz/v2"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/zkp-iden3-exposer/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/types"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -52,32 +56,84 @@ func GetOffer(issuerApi string, identity *Identity, claimType string) (types.Cla
 }
 
 func GetVC(identity Identity, offer types.ClaimOffer) (*overrides.W3CCredential, error) {
-	//wasmFileBytes, err := GetFile("../assets/circuits/auth/circuit.wasm")
-	//
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "Error getting wasm file")
-	//}
-	//
-	//provingKeyFileBytes, err := GetFile("../assets/circuits/auth/circuit_final.zkey")
-	//
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "Error getting proving key file")
-	//}
+	wasm, err := GetFile("../assets/circuits/auth/circuit.wasm")
 
-	//circuits := types.CircuitPair{
-	//	Wasm:       wasmFileBytes,
-	//	ProvingKey: provingKeyFileBytes,
-	//}
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting wasm file")
+	}
 
-	//vc, err := GetVerifiableCredentials(identity, offer, circuits)
+	provingKey, err := GetFile("../assets/circuits/auth/circuit_final.zkey")
 
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "Error getting vc")
-	//}
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting proving key file")
+	}
 
-	//return vc, nil
+	circuitsPair := types.CircuitPair{
+		Wasm:       wasm,
+		ProvingKey: provingKey,
+	}
 
-	return nil, nil
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting AuthV2Inputs")
+	}
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting vc")
+	}
+
+	claimDetailsJson, err := GetClaimDetailsJson(offer)
+
+	if err != nil {
+		return nil, err
+	}
+
+	preparer := jwz.ProofInputsPreparerHandlerFunc(func(hash []byte, circuitID circuits.CircuitID) ([]byte, error) {
+		return identity.PrepareAuthV2Inputs(hash, circuitID)
+	})
+
+	token, err := jwz.NewWithPayload(
+		jwz.ProvingMethodGroth16AuthV2Instance,
+		claimDetailsJson,
+		preparer,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	jwzTokenRaw, err := token.Prove(circuitsPair.ProvingKey, circuitsPair.Wasm)
+
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := http.Post(offer.Body.Url, "application/json", strings.NewReader(jwzTokenRaw))
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to post")
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, errors.New("response status is not OK")
+	}
+
+	defer response.Body.Close()
+
+	type AgentResponse struct {
+		Body struct {
+			Credential overrides.W3CCredential `json:"credential"`
+		} `json:"body"`
+	}
+
+	agentResponse := AgentResponse{}
+
+	if err := json.NewDecoder(response.Body).Decode(&agentResponse); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal")
+	}
+
+	agentResponse.Body.Credential.W3CCredential.Proof = verifiable.CredentialProofs(agentResponse.Body.Credential.Proof)
+
+	return &agentResponse.Body.Credential, nil
 }
 
 func TestGetVerifiableCredentials(t *testing.T) {
@@ -97,24 +153,22 @@ func TestGetVerifiableCredentials(t *testing.T) {
 	})
 
 	t.Run("should get AuthV2 inputs", func(t *testing.T) {
-		authV2Inputs, err := GetAuthV2Inputs(identity, offer)
+		_, err := GetAuthV2Inputs(identity, offer)
+
+		if err != nil {
+			t.Errorf("Error: %v", err)
+		}
+	})
+
+	t.Run("should get vc", func(t *testing.T) {
+		vc, err := GetVC(identity, offer)
 
 		if err != nil {
 			t.Errorf("Error: %v", err)
 		}
 
-		println(string(authV2Inputs))
+		if strings.Contains(vc.ID, offer.Body.Credentials[0].Id) == false {
+			t.Errorf("Error: %v", err)
+		}
 	})
-
-	//t.Run("should get vc", func(t *testing.T) {
-	//	vc, err := GetVC(identity, offer)
-	//
-	//	if err != nil {
-	//		t.Errorf("Error: %v", err)
-	//	}
-	//
-	//	if strings.Contains(vc.ID, offer.Body.Credentials[0].Id) == false {
-	//		t.Errorf("Error: %v", err)
-	//	}
-	//})
 }
