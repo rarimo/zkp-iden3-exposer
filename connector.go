@@ -15,25 +15,36 @@ import (
 	"net/http"
 )
 
-func getIdentity(pkHex *string) instances.Identity {
-	identity, _ := instances.NewIdentity(instances.IdentityConfig{
-		IdType: [2]byte{
-			0x01,
-			0x00,
-		},
-		SchemaHashHex: "cca3371a6cb1b715004407e325bd993c",
+func getIdentity(identityConfig []byte) (*instances.Identity, error) {
+	config := types.IdentityConfig{}
+
+	if err := json.Unmarshal(identityConfig, &config); err != nil {
+		return nil, errors.Wrap(err, "Error unmarshalling identity config")
+	}
+
+	if config.PkHex == "" || &config.PkHex == nil {
+		return nil, errors.New("Private key is required")
+	}
+
+	identity, err := instances.NewIdentity(instances.IdentityConfig{
+		IdType:        config.IdType,
+		SchemaHashHex: config.SchemaHashHex,
 		ChainInfo: types.ChainZkpInfo{
-			TargetChainId:              11155111,
-			TargetRpcUrl:               "https://endpoints.omniatech.io/v1/eth/sepolia/public",
-			TargetStateContractAddress: "0x8a9F505bD8a22BF09b0c19F65C17426cd33f3912",
+			TargetChainId:              config.TargetChainId,
+			TargetRpcUrl:               config.TargetRpcUrl,
+			TargetStateContractAddress: config.TargetStateContractAddress,
 
-			CoreApiUrl:               "https://rpc-api.node1.mainnet-beta.rarimo.com",
-			CoreEvmRpcApiUrl:         "https://rpc.evm.node1.mainnet-beta.rarimo.com",
-			CoreStateContractAddress: "0x753a8678c85d5fb70A97CFaE37c84CE2fD67EDE8",
+			CoreApiUrl:               config.CoreApiUrl,
+			CoreEvmRpcApiUrl:         config.CoreEvmRpcApiUrl,
+			CoreStateContractAddress: config.CoreStateContractAddress,
 		},
-	}, pkHex)
+	}, &config.PkHex)
 
-	return *identity
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating identity")
+	}
+
+	return identity, nil
 }
 
 func GetOfferJson(issuerApi string, identityDidString string, claimType string) ([]byte, error) {
@@ -58,42 +69,41 @@ func GetOfferJson(issuerApi string, identityDidString string, claimType string) 
 	return offerJson, nil
 }
 
-func GetIdentity(pkHex string) ([]byte, error) {
-	if pkHex == "" || &pkHex == nil {
-		return nil, errors.New("Private key is required")
+func GetDidString(identityConfig []byte) (string, error) {
+	identity, err := getIdentity(identityConfig)
+
+	if err != nil {
+		return "", errors.Wrap(err, "Error getting identity")
 	}
 
-	identity := getIdentity(&pkHex)
+	return identity.DID.String(), nil
+}
 
-	did := identity.DID
+func GetIdBigIntString(identityConfig []byte) (string, error) {
+	identity, err := getIdentity(identityConfig)
+
+	if err != nil {
+		return "", errors.Wrap(err, "Error getting identity")
+	}
 
 	id, err := identity.ID()
 
 	if err != nil {
-		return nil, err
+		return "", nil
 	}
 
-	identityJson, err := json.Marshal(map[string]string{
-		"did":       did.String(),
-		"didBigInt": id.BigInt().String(),
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return identityJson, nil
+	return id.BigInt().String(), nil
 }
 
 func GetAuthV2Inputs(
-	privateKeyHex string,
+	identityConfig []byte,
 	offerJson []byte,
 ) ([]byte, error) {
-	if privateKeyHex == "" || &privateKeyHex == nil {
-		return nil, errors.New("Private key is required")
-	}
+	identity, err := getIdentity(identityConfig)
 
-	identity := getIdentity(&privateKeyHex)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting identity")
+	}
 
 	offer := types.ClaimOffer{}
 
@@ -133,15 +143,15 @@ func GetAuthV2Inputs(
 }
 
 func GetVC(
-	privateKeyHex string,
+	identityConfig []byte,
 	offerJson []byte,
 	proofRaw []byte,
 ) ([]byte, error) {
-	if privateKeyHex == "" || &privateKeyHex == nil {
-		return nil, errors.New("Private key is required")
-	}
+	identity, err := getIdentity(identityConfig)
 
-	identity := getIdentity(&privateKeyHex)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting identity")
+	}
 
 	offer := types.ClaimOffer{}
 
@@ -151,7 +161,7 @@ func GetVC(
 
 	claimDetailsJson, err := instances.GetClaimDetailsJson(offer)
 
-	jwzToken, err := instances.GetJWZToken(identity, claimDetailsJson, proofRaw)
+	jwzToken, err := instances.GetJWZToken(*identity, claimDetailsJson, proofRaw)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting JWZ token")
@@ -173,7 +183,7 @@ func GetVC(
 }
 
 func GetAtomicQueryMTVV2OnChainInputs(
-	privateKeyHex string,
+	identityConfig []byte,
 	jsonVC []byte,
 
 	circuitId string,
@@ -183,11 +193,11 @@ func GetAtomicQueryMTVV2OnChainInputs(
 	subjectFieldValue string,
 	operator int,
 ) ([]byte, error) {
-	if privateKeyHex == "" || &privateKeyHex == nil {
-		return nil, errors.New("Private key is required")
-	}
+	identity, err := getIdentity(identityConfig)
 
-	identity := getIdentity(&privateKeyHex)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting identity")
+	}
 
 	proofRequest := types.CreateProofRequest{
 		CircuitId: circuits.CircuitID(circuitId),
@@ -271,7 +281,7 @@ func GetAtomicQueryMTVV2OnChainInputs(
 	}
 
 	atomicQueryMTPV2OnChainProof := instances.NewAtomicQueryMTPV2OnChainProof(
-		identity,
+		*identity,
 
 		stateInfoResponse.State.Hash,
 		operationResponse.Operation.Details.GISTHash,

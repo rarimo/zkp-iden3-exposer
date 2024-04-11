@@ -12,6 +12,24 @@ import (
 	"testing"
 )
 
+var identityConfig = types.IdentityConfig{
+	PkHex: "9a5305fa4c55cbf517c99693a7ec6766203c88feab50c944c00feec051d5dab7",
+
+	IdType: [2]byte{
+		0x01,
+		0x00,
+	},
+	SchemaHashHex: "cca3371a6cb1b715004407e325bd993c",
+
+	TargetChainId:              11155111,
+	TargetRpcUrl:               "https://endpoints.omniatech.io/v1/eth/sepolia/public",
+	TargetStateContractAddress: "0x8a9F505bD8a22BF09b0c19F65C17426cd33f3912",
+
+	CoreApiUrl:               "https://rpc-api.node1.mainnet-beta.rarimo.com",
+	CoreEvmRpcApiUrl:         "https://rpc.evm.node1.mainnet-beta.rarimo.com",
+	CoreStateContractAddress: "0x753a8678c85d5fb70A97CFaE37c84CE2fD67EDE8",
+}
+
 func getFile(path string) ([]byte, error) {
 	file, err := os.Open(path)
 
@@ -34,34 +52,6 @@ func getFile(path string) ([]byte, error) {
 	}
 
 	return data, nil
-}
-
-func getIdentityInstance(pkHex *string) instances.Identity {
-	PK := pkHex
-
-	if PK == nil {
-		_pkHex := "9a5305fa4c55cbf517c99693a7ec6766203c88feab50c944c00feec051d5dab7"
-		PK = &_pkHex
-	}
-
-	identity, _ := instances.NewIdentity(instances.IdentityConfig{
-		IdType: [2]byte{
-			0x01,
-			0x00,
-		},
-		SchemaHashHex: "cca3371a6cb1b715004407e325bd993c",
-		ChainInfo: types.ChainZkpInfo{
-			TargetChainId:              11155111,
-			TargetRpcUrl:               "https://endpoints.omniatech.io/v1/eth/sepolia/public",
-			TargetStateContractAddress: "0x8a9F505bD8a22BF09b0c19F65C17426cd33f3912",
-
-			CoreApiUrl:               "https://rpc-api.node1.mainnet-beta.rarimo.com",
-			CoreEvmRpcApiUrl:         "https://rpc.evm.node1.mainnet-beta.rarimo.com",
-			CoreStateContractAddress: "0x753a8678c85d5fb70A97CFaE37c84CE2fD67EDE8",
-		},
-	}, PK)
-
-	return *identity
 }
 
 func getGroth16AuthV2ZKProof(identity instances.Identity, offer types.ClaimOffer) ([]byte, error) {
@@ -118,23 +108,23 @@ func getGroth16AuthV2ZKProof(identity instances.Identity, offer types.ClaimOffer
 }
 
 func TestConnector(t *testing.T) {
-	PK := "9a5305fa4c55cbf517c99693a7ec6766203c88feab50c944c00feec051d5dab7"
 	issuerApi := "https://issuer.polygon.robotornot.mainnet-beta.rarimo.com"
 	claimType := "urn:uuid:6dff4518-5177-4f39-af58-9c156d9b6309"
 
-	identityInstance := getIdentityInstance(&PK)
+	identityConfigJson, err := json.Marshal(identityConfig)
+
+	if err != nil {
+		t.Errorf("Error marshalling identity config: %v", err)
+	}
+
+	identityInstance, err := getIdentity(identityConfigJson)
+
+	if err != nil {
+		t.Errorf("Error getting identity instance: %v", err)
+	}
 
 	offer := types.ClaimOffer{}
 
-	t.Run("should get did string and did id bigint string", func(t *testing.T) {
-		response, err := GetIdentity(PK)
-
-		if err != nil {
-			t.Errorf("Error getting identity: %v", err)
-		}
-
-		println(string(response))
-	})
 	t.Run("Should get offer json", func(t *testing.T) {
 		offerJson, err := GetOfferJson(issuerApi, identityInstance.DID.String(), claimType)
 
@@ -155,7 +145,7 @@ func TestConnector(t *testing.T) {
 			t.Errorf("Error marshalling offer: %v", err)
 		}
 
-		authV2InputsJson, err := GetAuthV2Inputs(PK, offerJson)
+		authV2InputsJson, err := GetAuthV2Inputs(identityConfigJson, offerJson)
 
 		if err != nil {
 			t.Errorf("Error getting auth v2 inputs: %v", err)
@@ -165,7 +155,7 @@ func TestConnector(t *testing.T) {
 	})
 	t.Run("Should get VC", func(t *testing.T) {
 		/* IMITATE GROTH16 AUTHV2 PROVE, should be done in mobile device */
-		zkProofRaw, err := getGroth16AuthV2ZKProof(identityInstance, offer)
+		zkProofRaw, err := getGroth16AuthV2ZKProof(*identityInstance, offer)
 
 		if err != nil {
 			t.Errorf("Error getting Groth16 AuthV2 ZK Proof: %v", err)
@@ -177,7 +167,7 @@ func TestConnector(t *testing.T) {
 			t.Errorf("Error marshalling offer: %v", err)
 		}
 
-		vc, err := GetVC(PK, offerJson, zkProofRaw)
+		vc, err := GetVC(identityConfigJson, offerJson, zkProofRaw)
 
 		if err != nil {
 			t.Errorf("Error getting VC: %v", err)
@@ -195,7 +185,7 @@ func TestConnector(t *testing.T) {
 
 		// Test the GetIdentity function
 		atomicQueryMTVV2OnChainInputs, err := GetAtomicQueryMTVV2OnChainInputs(
-			"9a5305fa4c55cbf517c99693a7ec6766203c88feab50c944c00feec051d5dab7",
+			identityConfigJson,
 			vcB,
 			"credentialAtomicQueryMTPV2OnChain",
 			"EA931A38726546cB7B5992483867387fC9FAdF7b",
