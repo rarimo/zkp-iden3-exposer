@@ -8,6 +8,7 @@ import (
 	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
+	"github.com/rarimo/go-jwz"
 	"github.com/rarimo/zkp-iden3-exposer/instances"
 	"github.com/rarimo/zkp-iden3-exposer/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/types"
@@ -35,20 +36,26 @@ func getIdentity(pkHex *string) instances.Identity {
 	return *identity
 }
 
-func getOffer(issuerApi string, identity *instances.Identity, claimType string) (types.ClaimOffer, error) {
+func GetOfferJson(issuerApi string, identityDidString string, claimType string) ([]byte, error) {
 	offer := types.ClaimOffer{}
 
-	response, err := http.Get(issuerApi + "/v1/credentials/" + identity.DID.String() + "/" + claimType)
+	response, err := http.Get(issuerApi + "/v1/credentials/" + identityDidString + "/" + claimType)
 
 	if err != nil {
-		return offer, errors.Wrap(err, "Error getting offer")
+		return nil, errors.Wrap(err, "Error getting offer")
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&offer); err != nil {
-		return offer, errors.Wrap(err, "Error decoding offer")
+		return nil, errors.Wrap(err, "Error decoding offer")
 	}
 
-	return offer, nil
+	offerJson, err := json.Marshal(offer)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error marshalling offer")
+	}
+
+	return offerJson, nil
 }
 
 func GetIdentity(pkHex string) ([]byte, error) {
@@ -80,8 +87,7 @@ func GetIdentity(pkHex string) ([]byte, error) {
 
 func GetAuthV2Inputs(
 	privateKeyHex string,
-	issuerApi string,
-	claimType string,
+	offerJson []byte,
 ) ([]byte, error) {
 	if privateKeyHex == "" || &privateKeyHex == nil {
 		return nil, errors.New("Private key is required")
@@ -89,13 +95,81 @@ func GetAuthV2Inputs(
 
 	identity := getIdentity(&privateKeyHex)
 
-	offer, err := getOffer(issuerApi, &identity, claimType)
+	offer := types.ClaimOffer{}
 
-	if err != nil {
-		return nil, errors.Wrap(err, "Error getting offer")
+	if err := json.Unmarshal(offerJson, &offer); err != nil {
+		return nil, errors.Wrap(err, "Error unmarshalling offer")
 	}
 
-	return instances.GetAuthV2Inputs(identity, offer)
+	claimDetailsJson, err := instances.GetClaimDetailsJson(offer)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting claim details")
+	}
+
+	preparer := jwz.ProofInputsPreparerHandlerFunc(func(hash []byte, circuitID circuits.CircuitID) ([]byte, error) {
+		return identity.PrepareAuthV2Inputs(hash, circuitID)
+	})
+
+	token, err := jwz.NewWithPayload(
+		jwz.ProvingMethodGroth16AuthV2Instance,
+		claimDetailsJson,
+		preparer,
+	)
+
+	messageHash, err := token.GetMessageHash()
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting message hash")
+	}
+
+	authV2Inputs, err := identity.PrepareAuthV2Inputs(messageHash, circuits.AuthV2CircuitID)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting AuthV2Inputs")
+	}
+
+	return authV2Inputs, nil
+}
+
+func GetVC(
+	privateKeyHex string,
+	offerJson []byte,
+	proofRaw []byte,
+) ([]byte, error) {
+	if privateKeyHex == "" || &privateKeyHex == nil {
+		return nil, errors.New("Private key is required")
+	}
+
+	identity := getIdentity(&privateKeyHex)
+
+	offer := types.ClaimOffer{}
+
+	if err := json.Unmarshal(offerJson, &offer); err != nil {
+		return nil, errors.Wrap(err, "Error unmarshalling offer")
+	}
+
+	claimDetailsJson, err := instances.GetClaimDetailsJson(offer)
+
+	jwzToken, err := instances.GetJWZToken(identity, claimDetailsJson, proofRaw)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting JWZ token")
+	}
+
+	vc, err := instances.LoadVC(offer.Body.Url, *jwzToken)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error loading VC")
+	}
+
+	vcJson, err := json.Marshal(vc)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error marshalling VC")
+	}
+
+	return vcJson, nil
 }
 
 func GetAtomicQueryMTVV2OnChainInputs(

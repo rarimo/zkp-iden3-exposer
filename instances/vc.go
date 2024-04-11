@@ -4,9 +4,14 @@ import (
 	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/iden3/go-circuits/v2"
+	types2 "github.com/iden3/go-rapidsnark/types"
+	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/go-jwz"
+	"github.com/rarimo/zkp-iden3-exposer/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/types"
+	"net/http"
+	"strings"
 )
 
 func GetClaimDetailsJson(claimOffer types.ClaimOffer) ([]byte, error) {
@@ -112,62 +117,72 @@ func GetAuthV2Inputs(
 	return authV2Inputs, nil
 }
 
-//func GetVerifiableCredentials(
-//	identity Identity,
-//	claimOffer types.ClaimOffer,
-//	circuitsPair types.CircuitPair,
-//) (*overrides.W3CCredential, error) {
-//	claimDetailsJson, err := GetClaimDetailsJson(identity, claimOffer)
-//
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	preparer := jwz.ProofInputsPreparerHandlerFunc(func(hash []byte, circuitID circuits.CircuitID) ([]byte, error) {
-//		return identity.PrepareAuthV2Inputs(hash, circuitID)
-//	})
-//
-//	token, err := jwz.NewWithPayload(
-//		jwz.ProvingMethodGroth16AuthV2Instance,
-//		claimDetailsJson,
-//		preparer,
-//	)
-//
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	jwzTokenRaw, err := token.Prove(circuitsPair.ProvingKey, circuitsPair.Wasm)
-//
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	response, err := http.Post(claimOffer.Body.Url, "application/json", strings.NewReader(jwzTokenRaw))
-//
-//	if err != nil {
-//		return nil, errors.Wrap(err, "failed to post")
-//	}
-//
-//	if response.StatusCode != http.StatusOK {
-//		return nil, errors.New("response status is not OK")
-//	}
-//
-//	defer response.Body.Close()
-//
-//	type AgentResponse struct {
-//		Body struct {
-//			Credential overrides.W3CCredential `json:"credential"`
-//		} `json:"body"`
-//	}
-//
-//	agentResponse := AgentResponse{}
-//
-//	if err := json.NewDecoder(response.Body).Decode(&agentResponse); err != nil {
-//		return nil, errors.Wrap(err, "failed to unmarshal")
-//	}
-//
-//	agentResponse.Body.Credential.W3CCredential.Proof = verifiable.CredentialProofs(agentResponse.Body.Credential.Proof)
-//
-//	return &agentResponse.Body.Credential, nil
-//}
+func GetJWZToken(
+	identity Identity,
+	claimDetailsJson []byte,
+	proofRaw []byte,
+) (*string, error) {
+	preparer := jwz.ProofInputsPreparerHandlerFunc(func(hash []byte, circuitID circuits.CircuitID) ([]byte, error) {
+		return identity.PrepareAuthV2Inputs(hash, circuitID)
+	})
+
+	token, err := jwz.NewWithPayload(
+		jwz.ProvingMethodGroth16AuthV2Instance,
+		claimDetailsJson,
+		preparer,
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating token")
+	}
+
+	headers, err := json.Marshal(token.Raw.Header)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error marshalling headers")
+	}
+	token.Raw.Protected = headers
+
+	proof := types2.ZKProof{}
+	if err := json.Unmarshal(proofRaw, &proof); err != nil {
+		return nil, errors.Wrap(err, "Error unmarshalling proof")
+	}
+
+	token.ZkProof = &proof
+	token.Raw.ZKP = proofRaw
+
+	jwzToken, err := token.CompactSerialize()
+	if err != nil {
+		return nil, errors.Wrap(err, "Error serializing token")
+	}
+
+	return &jwzToken, nil
+}
+
+func LoadVC(url string, jwzToken string) (*overrides.W3CCredential, error) {
+	response, err := http.Post(url, "application/json", strings.NewReader(jwzToken))
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to post")
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, errors.New("response status is not OK")
+	}
+
+	defer response.Body.Close()
+
+	type AgentResponse struct {
+		Body struct {
+			Credential overrides.W3CCredential `json:"credential"`
+		} `json:"body"`
+	}
+
+	agentResponse := AgentResponse{}
+
+	if err := json.NewDecoder(response.Body).Decode(&agentResponse); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal")
+	}
+
+	agentResponse.Body.Credential.W3CCredential.Proof = verifiable.CredentialProofs(agentResponse.Body.Credential.Proof)
+
+	return &agentResponse.Body.Credential, nil
+}

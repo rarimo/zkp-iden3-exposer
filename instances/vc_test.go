@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"github.com/iden3/go-circuits/v2"
 	"github.com/iden3/go-jwz/v2"
-	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/zkp-iden3-exposer/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/types"
@@ -73,14 +72,6 @@ func GetVC(identity Identity, offer types.ClaimOffer) (*overrides.W3CCredential,
 		ProvingKey: provingKey,
 	}
 
-	if err != nil {
-		return nil, errors.Wrap(err, "Error getting AuthV2Inputs")
-	}
-
-	if err != nil {
-		return nil, errors.Wrap(err, "Error getting vc")
-	}
-
 	claimDetailsJson, err := GetClaimDetailsJson(offer)
 
 	if err != nil {
@@ -98,42 +89,22 @@ func GetVC(identity Identity, offer types.ClaimOffer) (*overrides.W3CCredential,
 	)
 
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Error getting AuthV2Inputs")
 	}
 
 	jwzTokenRaw, err := token.Prove(circuitsPair.ProvingKey, circuitsPair.Wasm)
 
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Error getting JWZ token")
 	}
 
-	response, err := http.Post(offer.Body.Url, "application/json", strings.NewReader(jwzTokenRaw))
+	vc, err := LoadVC(offer.Body.Url, jwzTokenRaw)
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to post")
+		return nil, errors.Wrap(err, "Error getting vc")
 	}
 
-	if response.StatusCode != http.StatusOK {
-		return nil, errors.New("response status is not OK")
-	}
-
-	defer response.Body.Close()
-
-	type AgentResponse struct {
-		Body struct {
-			Credential overrides.W3CCredential `json:"credential"`
-		} `json:"body"`
-	}
-
-	agentResponse := AgentResponse{}
-
-	if err := json.NewDecoder(response.Body).Decode(&agentResponse); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal")
-	}
-
-	agentResponse.Body.Credential.W3CCredential.Proof = verifiable.CredentialProofs(agentResponse.Body.Credential.Proof)
-
-	return &agentResponse.Body.Credential, nil
+	return vc, nil
 }
 
 func TestGetVerifiableCredentials(t *testing.T) {
