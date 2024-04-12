@@ -8,9 +8,9 @@ import (
 	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
-	"github.com/rarimo/zkp-iden3-exposer/helpers"
-	"github.com/rarimo/zkp-iden3-exposer/overrides"
-	"github.com/rarimo/zkp-iden3-exposer/types"
+	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/helpers"
+	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/overrides"
+	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/types"
 	"math/big"
 	"time"
 )

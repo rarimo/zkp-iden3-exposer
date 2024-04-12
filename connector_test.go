@@ -5,8 +5,8 @@ import (
 	"github.com/iden3/go-circuits/v2"
 	"github.com/iden3/go-jwz/v2"
 	"github.com/pkg/errors"
-	"github.com/rarimo/zkp-iden3-exposer/instances"
-	"github.com/rarimo/zkp-iden3-exposer/types"
+	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/instances"
+	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/types"
 	"io"
 	"os"
 	"testing"
@@ -55,13 +55,13 @@ func getFile(path string) ([]byte, error) {
 }
 
 func getGroth16AuthV2ZKProof(identity instances.Identity, offer types.ClaimOffer) ([]byte, error) {
-	wasm, err := getFile("./assets/circuits/auth/circuit.wasm")
+	wasm, err := getFile("./internal/zkp/assets/circuits/auth/circuit.wasm")
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting wasm file")
 	}
 
-	provingKey, err := getFile("./assets/circuits/auth/circuit_final.zkey")
+	provingKey, err := getFile("./internal/zkp/assets/circuits/auth/circuit_final.zkey")
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting proving key")
@@ -177,7 +177,7 @@ func TestConnector(t *testing.T) {
 
 	})
 	t.Run("Should get atomic query mtp v2 on-chain inputs", func(t *testing.T) {
-		vcB, err := getFile("./mocks/vc.json")
+		vcB, err := getFile("./internal/zkp/mocks/vc.json")
 
 		if err != nil {
 			t.Errorf("Error getting file: %v", err)
