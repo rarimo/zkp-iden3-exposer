@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"github.com/cosmos/cosmos-sdk/types/tx"
+	"github.com/cosmos/gogoproto/proto"
 	"testing"
 )
 
@@ -278,7 +279,12 @@ func TestWallet(t *testing.T) {
 			AccountNumber: 0,
 		}
 
-		signature, err := wallet.SignDirect(wallet.Address, &signDoc)
+		bytesToSign, err := proto.Marshal(&signDoc)
+		if err != nil {
+			t.Errorf("Error marshalling: %v", err)
+		}
+
+		signature, err := wallet.SignDirect(wallet.Address, bytesToSign)
 		if err != nil {
 			t.Errorf("Error signing: %v", err)
 		}

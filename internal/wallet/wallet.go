@@ -4,10 +4,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/decred/dcrd/bech32"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ripemd160"
 	"strings"
@@ -65,7 +63,7 @@ func (w *Wallet) GetAccounts() []Account {
 	}
 }
 
-func (w *Wallet) SignDirect(signerAddress string, signDoc *tx.SignDoc) ([]byte, error) {
+func (w *Wallet) SignDirect(signerAddress string, bytesToSign []byte) ([]byte, error) {
 	accounts := w.GetAccounts()
 
 	account := Account{}
@@ -78,11 +76,6 @@ func (w *Wallet) SignDirect(signerAddress string, signDoc *tx.SignDoc) ([]byte, 
 
 	if &account.Address == nil {
 		return nil, errors.New("Signer address not found")
-	}
-
-	bytesToSign, err := proto.Marshal(signDoc)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error marshalling sign doc")
 	}
 
 	privateKey := w.PrivateKey.ToECDSA()
