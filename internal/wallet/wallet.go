@@ -12,9 +12,10 @@ import (
 )
 
 type Wallet struct {
-	PrivateKey secp256k1.PrivateKey
-	PubKey     secp256k1.PublicKey
-	Address    string
+	PrivateKeyHex string
+	PrivateKey    secp256k1.PrivateKey
+	PubKey        secp256k1.PublicKey
+	Address       string
 }
 
 func NewWallet(privateKeyHex string, addressPrefix string) (*Wallet, error) {
@@ -47,9 +48,10 @@ func NewWallet(privateKeyHex string, addressPrefix string) (*Wallet, error) {
 	address, err := bech32.Encode(addressPrefix, covertedPubKeyHashedRipemd160)
 
 	return &Wallet{
-		PrivateKey: *privateKey,
-		PubKey:     *pubKey,
-		Address:    address,
+		PrivateKeyHex: privateKeyHex,
+		PrivateKey:    *privateKey,
+		PubKey:        *pubKey,
+		Address:       address,
 	}, nil
 }
 

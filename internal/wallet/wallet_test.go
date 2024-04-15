@@ -7,8 +7,6 @@ import (
 )
 
 func TestWallet(t *testing.T) {
-	//PK := "9a5305fa4c55cbf517c99693a7ec6766203c88feab50c944c00feec051d5dab7"
-
 	PK := "1cbd5d2d1801e964736881fc0584473f23ba82669599ac65957fb4f2caf43e17"
 	address := "rarimo1xg8p3s2dsp6v79txhjdsdjprg3g87pn2n8uzxp"
 
