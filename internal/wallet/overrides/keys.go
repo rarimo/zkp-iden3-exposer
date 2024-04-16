@@ -8,15 +8,18 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
-	fmt "fmt"
+	"fmt"
+	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/crypto/types"
+	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
+	sdkErrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	_ "github.com/gogo/protobuf/gogoproto"
-	proto "github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
-	io "io"
-	math "math"
+	"io"
+	"math"
 	math_bits "math/bits"
 	"strings"
 )
@@ -25,6 +28,11 @@ import (
 var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
+
+var (
+	_ cryptotypes.PubKey   = &PubKey{}
+	_ codec.AminoMarshaler = &PubKey{}
+)
 
 const (
 	PrivKeySize = 32
@@ -47,6 +55,33 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 // This prefix is followed with the x-coordinate.
 type PubKey struct {
 	Key []byte `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+}
+
+// MarshalAmino overrides Amino binary marshalling.
+func (m PubKey) MarshalAmino() ([]byte, error) {
+	return m.Key, nil
+}
+
+// UnmarshalAmino overrides Amino binary marshalling.
+func (m *PubKey) UnmarshalAmino(bz []byte) error {
+	if len(bz) != PubKeySize {
+		return errors.Wrap(sdkErrors.ErrInvalidPubKey, "invalid pubkey size")
+	}
+	m.Key = bz
+
+	return nil
+}
+
+// MarshalAminoJSON overrides Amino JSON marshalling.
+func (m PubKey) MarshalAminoJSON() ([]byte, error) {
+	// When we marshal to Amino JSON, we don't marshal the "key" field itself,
+	// just its contents (i.e. the key bytes).
+	return m.MarshalAmino()
+}
+
+// UnmarshalAminoJSON overrides Amino JSON marshalling.
+func (m *PubKey) UnmarshalAminoJSON(bz []byte) error {
+	return m.UnmarshalAmino(bz)
 }
 
 func (m *PubKey) Address() types.Address {
@@ -121,6 +156,11 @@ func (m *PubKey) GetKey() []byte {
 	return nil
 }
 
+var (
+	_ cryptotypes.PrivKey  = &PrivKey{}
+	_ codec.AminoMarshaler = &PrivKey{}
+)
+
 // PrivKey defines a secp256k1 private key.
 type PrivKey struct {
 	Key []byte `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
@@ -139,6 +179,29 @@ func NewPrivKeyFromHexString(hexString string) (*PrivKey, error) {
 	}
 
 	return &pk, nil
+}
+
+func (m *PrivKey) MarshalAmino() ([]byte, error) {
+	return m.Key, nil
+}
+
+func (m *PrivKey) UnmarshalAmino(i []byte) error {
+	if len(i) != PrivKeySize {
+		return fmt.Errorf("invalid privkey size")
+	}
+	m.Key = i
+
+	return nil
+}
+
+func (m *PrivKey) MarshalAminoJSON() ([]byte, error) {
+	// When we marshal to Amino JSON, we don't marshal the "key" field itself,
+	// just its contents (i.e. the key bytes).
+	return m.MarshalAmino()
+}
+
+func (m *PrivKey) UnmarshalAminoJSON(i []byte) error {
+	return m.UnmarshalAmino(i)
 }
 
 func (m *PrivKey) Bytes() []byte {
