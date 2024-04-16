@@ -6,9 +6,9 @@ require (
 	github.com/cosmos/cosmos-sdk v0.50.5
 	github.com/cosmos/gogoproto v1.4.11
 	github.com/decred/dcrd/bech32 v1.1.3
+	github.com/decred/dcrd/crypto/ripemd160 v1.0.2
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/ethereum/go-ethereum v1.13.1
-	github.com/go-kit/kit v0.12.0
 	github.com/google/uuid v1.6.0
 	github.com/iden3/go-circuits/v2 v2.2.0
 	github.com/iden3/go-iden3-core/v2 v2.1.0
@@ -20,7 +20,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rarimo/go-jwz v1.0.3
 	github.com/rarimo/rarimo-core v1.1.0
-	golang.org/x/crypto v0.22.0
 	google.golang.org/grpc v1.62.0
 )
 
@@ -65,6 +64,7 @@ require (
 	github.com/ethereum/c-kzg-4844 v0.3.1 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
+	github.com/go-kit/kit v0.12.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -146,8 +146,8 @@ require (
 	go.opentelemetry.io/otel v1.14.0 // indirect
 	go.opentelemetry.io/otel/trace v1.14.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
+	golang.org/x/crypto v0.22.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
-	golang.org/x/mobile v0.0.0-20240404231514-09dbf07665ed // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect

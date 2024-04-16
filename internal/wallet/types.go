@@ -1,9 +1,11 @@
 package wallet
 
-import "github.com/decred/dcrd/dcrec/secp256k1/v4"
+import (
+	"github.com/rarimo/zkp-iden3-exposer/internal/wallet/overrides"
+)
 
 type Account struct {
-	Algo    string              `json:"algo"`
-	Address string              `json:"address"`
-	PubKey  secp256k1.PublicKey `json:"pubKey"`
+	Algo    string           `json:"algo"`
+	Address string           `json:"address"`
+	PubKey  overrides.PubKey `json:"pubKey"`
 }

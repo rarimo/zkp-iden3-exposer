@@ -6,7 +6,6 @@ import (
 	clienttx "github.com/cosmos/cosmos-sdk/client/tx"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
-	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	client "github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
@@ -14,7 +13,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	bank "github.com/cosmos/cosmos-sdk/x/bank/types"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/pkg/errors"
 	ethermint "github.com/rarimo/rarimo-core/ethermint/types"
 	"github.com/rarimo/zkp-iden3-exposer/internal/wallet"
@@ -31,8 +29,6 @@ type Client struct {
 }
 
 func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
-	privateKey := &secp256k1.PrivKey{Key: hexutil.MustDecode("0x" + c.Signer.PrivateKeyHex)}
-
 	txConfig := tx.NewTxConfig(
 		codec.NewProtoCodec(codectypes.NewInterfaceRegistry()),
 		[]signing.SignMode{signing.SignMode_SIGN_MODE_DIRECT},
@@ -71,7 +67,7 @@ func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
 	accountSequence := account.GetSequence()
 
 	err = builder.SetSignatures(signing.SignatureV2{
-		PubKey: privateKey.PubKey(),
+		PubKey: &c.Signer.PubKey,
 		Data: &signing.SingleSignatureData{
 			SignMode:  txConfig.SignModeHandler().DefaultMode(),
 			Signature: nil,
@@ -92,7 +88,7 @@ func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
 		txConfig.SignModeHandler().DefaultMode(),
 		signerData,
 		builder,
-		privateKey,
+		&c.Signer.PrivateKey,
 		txConfig,
 		accountSequence,
 	)
@@ -130,7 +126,6 @@ func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
 }
 
 func (c *Client) Send(addrFrom, addrTo string, amount int64, denom string) ([]byte, error) {
-	// FIXME: panic: invalid Bech32 prefix; expected cosmos, got rarimo
 	msgSend := &bank.MsgSend{
 		FromAddress: addrFrom,
 		ToAddress:   addrTo,

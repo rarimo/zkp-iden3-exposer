@@ -1,45 +1,27 @@
 package wallet
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"github.com/decred/dcrd/bech32"
-	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/pkg/errors"
-	"golang.org/x/crypto/ripemd160"
-	"strings"
+	"github.com/rarimo/zkp-iden3-exposer/internal/wallet/overrides"
 )
 
 type Wallet struct {
 	PrivateKeyHex string
-	PrivateKey    secp256k1.PrivateKey
-	PubKey        secp256k1.PublicKey
+	PrivateKey    overrides.PrivKey
+	PubKey        overrides.PubKey
 	Address       string
 }
 
 func NewWallet(privateKeyHex string, addressPrefix string) (*Wallet, error) {
-	sanitizedPrivateKey := strings.TrimPrefix(privateKeyHex, "0x")
-
-	privateKeyBytes, err := hex.DecodeString(sanitizedPrivateKey)
-
+	privateKey, err := overrides.NewPrivKeyFromHexString(privateKeyHex)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error decoding private key")
+		return nil, errors.Wrap(err, "Error creating private key")
 	}
-
-	privateKey := secp256k1.PrivKeyFromBytes(privateKeyBytes)
 
 	pubKey := privateKey.PubKey()
 
-	pubKeyHasher := sha256.New()
-	pubKeyHasher.Write(pubKey.SerializeCompressed())
-	pubKeyHashed := pubKeyHasher.Sum(nil)
-
-	pubKeyRipemd160Hasher := ripemd160.New()
-	pubKeyRipemd160Hasher.Write(pubKeyHashed)
-	pubKeyHashedRipemd160 := pubKeyRipemd160Hasher.Sum(nil)
-
-	covertedPubKeyHashedRipemd160, err := bech32.ConvertBits(pubKeyHashedRipemd160, 8, 5, true)
+	covertedPubKeyHashedRipemd160, err := bech32.ConvertBits(pubKey.Address(), 8, 5, true)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error converting public key hashed ripemd160")
@@ -50,8 +32,10 @@ func NewWallet(privateKeyHex string, addressPrefix string) (*Wallet, error) {
 	return &Wallet{
 		PrivateKeyHex: privateKeyHex,
 		PrivateKey:    *privateKey,
-		PubKey:        *pubKey,
-		Address:       address,
+		PubKey: overrides.PubKey{
+			Key: pubKey.Bytes(),
+		},
+		Address: address,
 	}, nil
 }
 
@@ -65,30 +49,30 @@ func (w *Wallet) GetAccounts() []Account {
 	}
 }
 
-func (w *Wallet) SignDirect(signerAddress string, bytesToSign []byte) ([]byte, error) {
-	accounts := w.GetAccounts()
-
-	account := Account{}
-
-	for _, a := range accounts {
-		if a.Address == signerAddress {
-			account = a
-		}
-	}
-
-	if &account.Address == nil {
-		return nil, errors.New("Signer address not found")
-	}
-
-	privateKey := w.PrivateKey.ToECDSA()
-
-	signature, err := privateKey.Sign(rand.Reader, bytesToSign, nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error signing")
-	}
-
-	return signature, nil
-}
+//func (w *Wallet) SignDirect(signerAddress string, bytesToSign []byte) ([]byte, error) {
+//	accounts := w.GetAccounts()
+//
+//	account := Account{}
+//
+//	for _, a := range accounts {
+//		if a.Address == signerAddress {
+//			account = a
+//		}
+//	}
+//
+//	if &account.Address == nil {
+//		return nil, errors.New("Signer address not found")
+//	}
+//
+//	privateKey := w.PrivateKey.ToECDSA()
+//
+//	signature, err := privateKey.Sign(rand.Reader, bytesToSign, nil)
+//	if err != nil {
+//		return nil, errors.Wrap(err, "Error signing")
+//	}
+//
+//	return signature, nil
+//}
 
 //func (w *Wallet) SignAmino(
 //	signerAddress string,
