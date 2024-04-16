@@ -2,23 +2,27 @@ package overrides
 
 import (
 	"bytes"
-	"crypto/rand"
+	"crypto/elliptic"
+	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"fmt"
 	"github.com/cosmos/cosmos-sdk/codec"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
-	"github.com/cosmos/cosmos-sdk/types/errors"
+	sdkErrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/pkg/errors"
 	"github.com/tendermint/tendermint/crypto"
+	"hash"
 	"io"
 	"math/big"
 )
 
 var (
-	_ cryptotypes.PrivKey  = &PrivKey{}
-	_ codec.AminoMarshaler = &PrivKey{}
+	_              cryptotypes.PrivKey  = &PrivKey{}
+	_              codec.AminoMarshaler = &PrivKey{}
+	oneInitializer                      = []byte{0x01}
 )
 
 const (
@@ -28,16 +32,177 @@ const (
 	PubKeyName  = "tendermint/PubKeySecp256k1"
 )
 
+func (*PrivKey) XXX_MessageName() string {
+	return "cosmos.crypto.secp256k1.PrivKey"
+	//return "cosmos.crypto.secp256r1.PrivKey"
+}
+
+// mac returns an HMAC of the given key and message.
+func mac(alg func() hash.Hash, k, m []byte) []byte {
+	h := hmac.New(alg, k)
+	h.Write(m)
+	return h.Sum(nil)
+}
+
+// https://tools.ietf.org/html/rfc6979#section-2.3.3
+func int2octets(v *big.Int, rolen int) []byte {
+	out := v.Bytes()
+
+	// left pad with zeros if it's too short
+	if len(out) < rolen {
+		out2 := make([]byte, rolen)
+		copy(out2[rolen-len(out):], out)
+		return out2
+	}
+
+	// drop most significant bytes if it's too long
+	if len(out) > rolen {
+		out2 := make([]byte, rolen)
+		copy(out2, out[len(out)-rolen:])
+		return out2
+	}
+
+	return out
+}
+
+// hashToInt converts a hash value to an integer. There is some disagreement
+// about how this is done. [NSA] suggests that this is done in the obvious
+// manner, but [SECG] truncates the hash to the bit-length of the curve order
+// first. We follow [SECG] because that's what OpenSSL does. Additionally,
+// OpenSSL right shifts excess bits from the number if the hash is too large
+// and we mirror that too.
+// This is borrowed from crypto/ecdsa.
+func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
+	orderBits := c.Params().N.BitLen()
+	orderBytes := (orderBits + 7) / 8
+	if len(hash) > orderBytes {
+		hash = hash[:orderBytes]
+	}
+
+	ret := new(big.Int).SetBytes(hash)
+	excess := len(hash)*8 - orderBits
+	if excess > 0 {
+		ret.Rsh(ret, uint(excess))
+	}
+	return ret
+}
+
+// https://tools.ietf.org/html/rfc6979#section-2.3.4
+func bits2octets(in []byte, curve elliptic.Curve, rolen int) []byte {
+	z1 := hashToInt(in, curve)
+	z2 := new(big.Int).Sub(z1, curve.Params().N)
+	if z2.Sign() < 0 {
+		return int2octets(z1, rolen)
+	}
+	return int2octets(z2, rolen)
+}
+
+// nonceRFC6979 generates an ECDSA nonce (`k`) deterministically according to RFC 6979.
+// It takes a 32-byte hash as an input and returns 32-byte nonce to be used in ECDSA algorithm.
+func nonceRFC6979(privkey *big.Int, hash []byte) *big.Int {
+
+	curve := secp256k1.S256()
+	q := curve.Params().N
+	x := privkey
+	alg := sha256.New
+
+	qlen := q.BitLen()
+	holen := alg().Size()
+	rolen := (qlen + 7) >> 3
+	bx := append(int2octets(x, rolen), bits2octets(hash, curve, rolen)...)
+
+	// Step B
+	v := bytes.Repeat(oneInitializer, holen)
+
+	// Step C (Go zeroes the all allocated memory)
+	k := make([]byte, holen)
+
+	// Step D
+	k = mac(alg, k, append(append(v, 0x00), bx...))
+
+	// Step E
+	v = mac(alg, k, v)
+
+	// Step F
+	k = mac(alg, k, append(append(v, 0x01), bx...))
+
+	// Step G
+	v = mac(alg, k, v)
+
+	// Step H
+	for {
+		// Step H1
+		var t []byte
+
+		// Step H2
+		for len(t)*8 < qlen {
+			v = mac(alg, k, v)
+			t = append(t, v...)
+		}
+
+		// Step H3
+		secret := hashToInt(t, curve)
+		if secret.Cmp(one) >= 0 && secret.Cmp(q) < 0 {
+			return secret
+		}
+		k = mac(alg, k, append(v, 0x00))
+		v = mac(alg, k, v)
+	}
+}
+
+// signRFC6979 generates a deterministic ECDSA signature according to RFC 6979 and BIP 62.
+func signRFC6979(privateKey *secp256k1.PrivateKey, hash []byte) (r, s *big.Int, err error) {
+	privkey := privateKey.ToECDSA()
+	N := secp256k1.S256().N
+	//halfOrder := secp256k1.S256().halfOrder
+	halfOrder := new(big.Int).Rsh(N, 1)
+	k := nonceRFC6979(privkey.D, hash)
+	inv := new(big.Int).ModInverse(k, N)
+	//r, _ := privkey.Curve.ScalarBaseMult(k.Bytes())
+	r, _ = privkey.Curve.ScalarBaseMult(k.Bytes())
+	r.Mod(r, N)
+
+	if r.Sign() == 0 {
+		return nil, nil, errors.New("calculated R is zero")
+	}
+
+	e := hashToInt(hash, privkey.Curve)
+	//s := new(big.Int).Mul(privkey.D, r)
+	s = new(big.Int).Mul(privkey.D, r)
+	s.Add(s, e)
+	s.Mul(s, inv)
+	s.Mod(s, N)
+
+	if s.Cmp(halfOrder) == 1 {
+		s.Sub(N, s)
+	}
+	if s.Sign() == 0 {
+		return nil, nil, errors.New("calculated S is zero")
+	}
+	return r, s, nil
+}
+
 func (privKey *PrivKey) Sign(msg []byte) ([]byte, error) {
 	pk := secp256k1.PrivKeyFromBytes(privKey.Key)
 
-	sig, err := pk.ToECDSA().Sign(rand.Reader, msg, nil)
+	r, s, err := signRFC6979(pk, crypto.Sha256(msg))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to sign message")
 	}
 
-	// TODO: mb serializeSign
-	return sig, nil
+	return serializeSig(r, s), nil
+}
+
+// Serialize signature to R || S.
+// R, S are padded to 32 bytes respectively.
+func serializeSig(r, s *big.Int) []byte {
+	rBytes := r.Bytes()
+	sBytes := s.Bytes()
+	sigBytes := make([]byte, 64)
+	// 0 pad the byte arrays from the left if they aren't big enough.
+	copy(sigBytes[32-len(rBytes):32], rBytes)
+	copy(sigBytes[64-len(sBytes):64], sBytes)
+	return sigBytes
 }
 
 // Bytes returns the byte representation of the Private Key.
@@ -165,6 +330,11 @@ var (
 // (the x-coordinate), plus one byte for the parity of the y-coordinate.
 const PubKeySize = 33
 
+func (*PubKey) XXX_MessageName() string {
+	//return "cosmos.crypto.secp256r1.PubKey"
+	return "cosmos.crypto.secp256k1.PubKey"
+}
+
 func (m *PubKey) VerifySignature(msg []byte, sig []byte) bool {
 	//TODO implement me
 	panic("implement me")
@@ -207,7 +377,7 @@ func (pubKey PubKey) MarshalAmino() ([]byte, error) {
 // UnmarshalAmino overrides Amino binary marshalling.
 func (pubKey *PubKey) UnmarshalAmino(bz []byte) error {
 	if len(bz) != PubKeySize {
-		return errors.Wrap(errors.ErrInvalidPubKey, "invalid pubkey size")
+		return errors.Wrap(sdkErrors.ErrInvalidPubKey, "invalid pubkey size")
 	}
 	pubKey.Key = bz
 
