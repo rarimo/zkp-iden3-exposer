@@ -13,6 +13,7 @@ import (
 	xauthsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	bank "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/pkg/errors"
 	ethermint "github.com/rarimo/rarimo-core/ethermint/types"
@@ -21,15 +22,16 @@ import (
 )
 
 type Client struct {
-	cli      *grpc.ClientConn
+	Cli      *grpc.ClientConn
+	Signer   wallet.Wallet
 	ChainId  string
 	Prefix   string
 	GasLimit int
 	GasPrice int
 }
 
-func (c *Client) SubmitTx(wallet wallet.Wallet, msgs ...sdk.Msg) ([]byte, error) {
-	privateKey := &secp256k1.PrivKey{Key: hexutil.MustDecode("0x" + wallet.PrivateKeyHex)}
+func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
+	privateKey := &secp256k1.PrivKey{Key: hexutil.MustDecode("0x" + c.Signer.PrivateKeyHex)}
 
 	txConfig := tx.NewTxConfig(
 		codec.NewProtoCodec(codectypes.NewInterfaceRegistry()),
@@ -52,9 +54,9 @@ func (c *Client) SubmitTx(wallet wallet.Wallet, msgs ...sdk.Msg) ([]byte, error)
 		},
 	)
 
-	accountResp, err := authtypes.NewQueryClient(c.cli).Account(
+	accountResp, err := authtypes.NewQueryClient(c.Cli).Account(
 		context.TODO(),
-		&authtypes.QueryAccountRequest{Address: wallet.Address},
+		&authtypes.QueryAccountRequest{Address: c.Signer.Address},
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "")
@@ -108,7 +110,7 @@ func (c *Client) SubmitTx(wallet wallet.Wallet, msgs ...sdk.Msg) ([]byte, error)
 		return nil, errors.Wrap(err, "")
 	}
 
-	grpcRes, err := client.NewServiceClient(c.cli).BroadcastTx(
+	grpcRes, err := client.NewServiceClient(c.Cli).BroadcastTx(
 		context.TODO(),
 		&client.BroadcastTxRequest{
 			Mode:    client.BroadcastMode_BROADCAST_MODE_BLOCK,
@@ -125,4 +127,25 @@ func (c *Client) SubmitTx(wallet wallet.Wallet, msgs ...sdk.Msg) ([]byte, error)
 	}
 
 	return data, nil
+}
+
+func (c *Client) Send(addrFrom, addrTo string, amount int64, denom string) ([]byte, error) {
+	// FIXME: panic: invalid Bech32 prefix; expected cosmos, got rarimo
+	msgSend := &bank.MsgSend{
+		FromAddress: addrFrom,
+		ToAddress:   addrTo,
+		Amount: sdk.Coins{
+			sdk.Coin{
+				Denom:  denom,
+				Amount: sdk.NewInt(amount),
+			},
+		},
+	}
+
+	txResp, err := c.submitTx(msgSend)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to submit tx")
+	}
+
+	return txResp, nil
 }
