@@ -1,9 +1,11 @@
 package wallet
 
 import (
+	"encoding/hex"
 	"github.com/decred/dcrd/bech32"
 	"github.com/pkg/errors"
 	"github.com/rarimo/zkp-iden3-exposer/internal/wallet/overrides"
+	"strings"
 )
 
 type Wallet struct {
@@ -14,10 +16,14 @@ type Wallet struct {
 }
 
 func NewWallet(privateKeyHex string, addressPrefix string) (*Wallet, error) {
-	privateKey, err := overrides.NewPrivKeyFromHexString(privateKeyHex)
+	sanitizedPrivateKey := strings.TrimPrefix(privateKeyHex, "0x")
+
+	privateKeyBytes, err := hex.DecodeString(sanitizedPrivateKey)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error creating private key")
+		return nil, errors.Wrap(err, "Error decoding private key")
 	}
+
+	privateKey := overrides.GenPrivKeyFromSecret(privateKeyBytes)
 
 	pubKey := privateKey.PubKey()
 
