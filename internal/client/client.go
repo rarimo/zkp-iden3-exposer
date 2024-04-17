@@ -4,7 +4,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 
-	//"context"
+	"context"
 	//"encoding/json"
 	//clienttx "github.com/cosmos/cosmos-sdk/client/tx"
 	//"github.com/cosmos/cosmos-sdk/codec"
@@ -12,13 +12,13 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	//client "github.com/cosmos/cosmos-sdk/types/tx"
 	//"github.com/cosmos/cosmos-sdk/types/tx/signing"
-	//xauthsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
+	xauthsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
 	//"github.com/cosmos/cosmos-sdk/x/auth/tx"
-	//authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	authTx "github.com/cosmos/cosmos-sdk/x/auth/tx"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	bank "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/pkg/errors"
-	//ethermint "github.com/rarimo/rarimo-core/ethermint/types"
+	ethermint "github.com/rarimo/rarimo-core/ethermint/types"
 	"github.com/rarimo/zkp-iden3-exposer/internal/wallet"
 	"google.golang.org/grpc"
 )
@@ -54,74 +54,76 @@ func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
 		},
 	)
 
-	//accountResp, err := authtypes.NewQueryClient(c.Cli).Account(
-	//	context.TODO(),
-	//	&authtypes.QueryAccountRequest{Address: c.Signer.Address},
-	//)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "")
-	//}
-	//
-	//account := ethermint.EthAccount{}
-	//err = account.Unmarshal(accountResp.Account.Value)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "")
-	//}
-	//
-	//accountSequence := account.GetSequence()
-	//
-	//err = builder.SetSignatures(signing.SignatureV2{
-	//	PubKey: &c.Signer.PubKey,
-	//	Data: &signing.SingleSignatureData{
-	//		SignMode:  txConfig.SignModeHandler().DefaultMode(),
-	//		Signature: nil,
-	//	},
-	//	Sequence: accountSequence,
-	//})
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "")
-	//}
-	//
-	//signerData := xauthsigning.SignerData{
-	//	ChainID:       c.ChainId,
-	//	AccountNumber: account.AccountNumber,
-	//	Sequence:      accountSequence,
-	//}
-	//
-	//// Generate the bytes to be signed.
-	//signBytes, err := txConfig.SignModeHandler().GetSignBytes(txConfig.SignModeHandler().DefaultMode(), signerData, builder.GetTx())
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "Failed to get sign bytes")
-	//}
-	//
-	//// Sign those bytes
-	//signature, err := c.Signer.PrivateKey.Sign(signBytes)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "Failed to sign bytes")
-	//}
-	//
-	//// Construct the SignatureV2 struct
-	//sigData := signing.SingleSignatureData{
-	//	SignMode:  txConfig.SignModeHandler().DefaultMode(),
-	//	Signature: signature,
-	//}
-	//
-	//sigV2 := signing.SignatureV2{
-	//	PubKey:   c.Signer.PrivateKey.PubKey(),
-	//	Data:     &sigData,
-	//	Sequence: accountSequence,
-	//}
-	//
-	//err = builder.SetSignatures(sigV2)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "Failed to set signature")
-	//}
-	//
-	//tx, err := txConfig.TxEncoder()(builder.GetTx())
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "")
-	//}
-	//
+	accountResp, err := authtypes.NewQueryClient(c.Cli).Account(
+		context.TODO(),
+		&authtypes.QueryAccountRequest{Address: c.Signer.Address},
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	account := ethermint.EthAccount{}
+	err = account.Unmarshal(accountResp.Account.Value)
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	accountSequence := account.GetSequence()
+
+	err = builder.SetSignatures(signing.SignatureV2{
+		PubKey: &c.Signer.PubKey,
+		Data: &signing.SingleSignatureData{
+			SignMode:  txConfig.SignModeHandler().DefaultMode(),
+			Signature: nil,
+		},
+		Sequence: accountSequence,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	signerData := xauthsigning.SignerData{
+		ChainID:       c.ChainId,
+		AccountNumber: account.AccountNumber,
+		Sequence:      accountSequence,
+	}
+
+	// Generate the bytes to be signed.
+	signBytes, err := txConfig.SignModeHandler().GetSignBytes(txConfig.SignModeHandler().DefaultMode(), signerData, builder.GetTx())
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to get sign bytes")
+	}
+
+	// Sign those bytes
+	signature, err := c.Signer.PrivateKey.Sign(signBytes)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to sign bytes")
+	}
+
+	// Construct the SignatureV2 struct
+	sigData := signing.SingleSignatureData{
+		SignMode:  txConfig.SignModeHandler().DefaultMode(),
+		Signature: signature,
+	}
+
+	sigV2 := signing.SignatureV2{
+		PubKey:   c.Signer.PrivateKey.PubKey(),
+		Data:     &sigData,
+		Sequence: accountSequence,
+	}
+
+	err = builder.SetSignatures(sigV2)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to set signature")
+	}
+
+	tx, err := txConfig.TxEncoder()(builder.GetTx())
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	println(tx)
+
 	//grpcRes, err := client.NewServiceClient(c.Cli).BroadcastTx(
 	//	context.TODO(),
 	//	&client.BroadcastTxRequest{
