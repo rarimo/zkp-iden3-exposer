@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestClient_SubmitTx(t *testing.T) {
+func TestClient(t *testing.T) {
 	pk := "1cbd5d2d1801e964736881fc0584473f23ba82669599ac65957fb4f2caf43e17"
 	addressPrefix := "rarimo"
 
@@ -31,8 +31,7 @@ func TestClient_SubmitTx(t *testing.T) {
 		t.Errorf("Error dialing grpc: %v", err)
 	}
 
-	// FIXME: {"txhash":"17CF651BB2C1FD80297ED454D51114A1F36F9DA73203D0C2850A4D094FBB4704","codespace":"sdk","code":2,"raw_log":"unable to resolve type URL /: tx parse error","logs":null,"gas_used":6666,"events":null}
-	t.Run("Should sign and send TX", func(t *testing.T) {
+	t.Run("Should Send tokens", func(t *testing.T) {
 		client := Client{
 			Cli:      grpcClient,
 			Signer:   *w,

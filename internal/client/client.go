@@ -5,15 +5,11 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 
 	"context"
-	//"encoding/json"
-	//clienttx "github.com/cosmos/cosmos-sdk/client/tx"
-	//"github.com/cosmos/cosmos-sdk/codec"
+	"encoding/json"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	//client "github.com/cosmos/cosmos-sdk/types/tx"
-	//"github.com/cosmos/cosmos-sdk/types/tx/signing"
+	client "github.com/cosmos/cosmos-sdk/types/tx"
 	xauthsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
-	//"github.com/cosmos/cosmos-sdk/x/auth/tx"
 	authTx "github.com/cosmos/cosmos-sdk/x/auth/tx"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	bank "github.com/cosmos/cosmos-sdk/x/bank/types"
@@ -122,27 +118,23 @@ func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
 		return nil, errors.Wrap(err, "")
 	}
 
-	println(tx)
+	grpcRes, err := client.NewServiceClient(c.Cli).BroadcastTx(
+		context.TODO(),
+		&client.BroadcastTxRequest{
+			Mode:    client.BroadcastMode_BROADCAST_MODE_BLOCK,
+			TxBytes: tx,
+		},
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to broadcast tx")
+	}
 
-	//grpcRes, err := client.NewServiceClient(c.Cli).BroadcastTx(
-	//	context.TODO(),
-	//	&client.BroadcastTxRequest{
-	//		Mode:    client.BroadcastMode_BROADCAST_MODE_BLOCK,
-	//		TxBytes: tx,
-	//	},
-	//)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "Failed to broadcast tx")
-	//}
-	//
-	//data, err := json.Marshal(grpcRes.TxResponse)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "Failed to marshal tx response")
-	//}
-	//
-	//return data, nil
+	data, err := json.Marshal(grpcRes.TxResponse)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to marshal tx response")
+	}
 
-	return nil, nil
+	return data, nil
 }
 
 func (c *Client) Send(addrFrom, addrTo string, amount int64, denom string) ([]byte, error) {

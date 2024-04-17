@@ -9,11 +9,15 @@ import (
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/go-jwz"
+	"github.com/rarimo/zkp-iden3-exposer/internal/client"
 	"github.com/rarimo/zkp-iden3-exposer/internal/wallet"
 	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/instances"
 	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/types"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	"net/http"
+	"time"
 )
 
 func getIdentity(identityConfig []byte) (*instances.Identity, error) {
@@ -308,62 +312,61 @@ func WalletGetAddress(pk string, addressPrefix string) (string, error) {
 	return w.Address, nil
 }
 
-//
-//func WalletSignDirect(pk string, addressPrefix string, signDoc []byte) ([]byte, error) {
-//	w, err := wallet.NewWallet(pk, addressPrefix)
-//	if err != nil {
-//		return nil, errors.Wrap(err, "Error creating wallet")
-//	}
-//
-//	signedBytes, err := w.SignDirect(w.Address, signDoc)
-//	if err != nil {
-//		return nil, errors.Wrap(err, "Error signing")
-//	}
-//
-//	return signedBytes, nil
-//}
-//
-//func WalletSend(pk string, addressPrefix, fromAddr, toAddr string, amount int64, denom string) ([]byte, error) {
-//	w, err := wallet.NewWallet(pk, addressPrefix)
-//	if err != nil {
-//		return nil, errors.Wrap(err, "Error creating wallet")
-//	}
-//
-//	grpcClient, err := grpc.Dial(
-//		"104.196.227.66:9090",
-//		//"rpc-api.node1.mainnet-beta.rarimo.com:443",
-//		//"rpc.node1.mainnet-beta.rarimo.com:443",
-//		grpc.WithInsecure(),
-//		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-//			Time:    10 * time.Second, // wait time before ping if no activity
-//			Timeout: 20 * time.Second, // ping timeout
-//		}),
-//	)
-//	if err != nil {
-//		return nil, errors.Wrap(err, "Error dialing grpc")
-//	}
-//
-//	client := client.Client{
-//		Cli:      grpcClient,
-//		Signer:   *w,
-//		ChainId:  "rarimo_42-1",
-//		Prefix:   addressPrefix,
-//		GasLimit: 1000000,
-//		GasPrice: 0,
-//	}
-//
-//	txResp, err := client.Send(
-//		fromAddr,
-//		toAddr,
-//		amount,
-//		denom,
-//	)
-//	if err != nil {
-//		return nil, errors.Wrap(err, "Error sending tx")
-//	}
-//
-//	return txResp, nil
-//}
+func WalletSignDirect(pk string, addressPrefix string, signDoc []byte) ([]byte, error) {
+	w, err := wallet.NewWallet(pk, addressPrefix)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating wallet")
+	}
+
+	signedBytes, err := w.SignDirect(w.Address, signDoc)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error signing")
+	}
+
+	return signedBytes, nil
+}
+
+func WalletSend(pk string, addressPrefix, fromAddr, toAddr string, amount int64, denom string) ([]byte, error) {
+	w, err := wallet.NewWallet(pk, addressPrefix)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating wallet")
+	}
+
+	grpcClient, err := grpc.Dial(
+		"104.196.227.66:9090",
+		//"rpc-api.node1.mainnet-beta.rarimo.com:443",
+		//"rpc.node1.mainnet-beta.rarimo.com:443",
+		grpc.WithInsecure(),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    10 * time.Second, // wait time before ping if no activity
+			Timeout: 20 * time.Second, // ping timeout
+		}),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error dialing grpc")
+	}
+
+	client := client.Client{
+		Cli:      grpcClient,
+		Signer:   *w,
+		ChainId:  "rarimo_42-1",
+		Prefix:   addressPrefix,
+		GasLimit: 1000000,
+		GasPrice: 0,
+	}
+
+	txResp, err := client.Send(
+		fromAddr,
+		toAddr,
+		amount,
+		denom,
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error sending tx")
+	}
+
+	return txResp, nil
+}
 
 //func RemoveCredentials() {}
 
