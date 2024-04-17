@@ -55,30 +55,28 @@ func (w *Wallet) GetAccounts() []Account {
 	}
 }
 
-//func (w *Wallet) SignDirect(signerAddress string, bytesToSign []byte) ([]byte, error) {
-//	accounts := w.GetAccounts()
-//
-//	account := Account{}
-//
-//	for _, a := range accounts {
-//		if a.Address == signerAddress {
-//			account = a
-//		}
-//	}
-//
-//	if &account.Address == nil {
-//		return nil, errors.New("Signer address not found")
-//	}
-//
-//	privateKey := w.PrivateKey.ToECDSA()
-//
-//	signature, err := privateKey.Sign(rand.Reader, bytesToSign, nil)
-//	if err != nil {
-//		return nil, errors.Wrap(err, "Error signing")
-//	}
-//
-//	return signature, nil
-//}
+func (w *Wallet) SignDirect(signerAddress string, bytesToSign []byte) ([]byte, error) {
+	accounts := w.GetAccounts()
+
+	account := Account{}
+
+	for _, a := range accounts {
+		if a.Address == signerAddress {
+			account = a
+		}
+	}
+
+	if &account.Address == nil {
+		return nil, errors.New("Signer address not found")
+	}
+
+	signature, err := w.PrivateKey.Sign(bytesToSign)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error signing")
+	}
+
+	return signature, nil
+}
 
 //func (w *Wallet) SignAmino(
 //	signerAddress string,
