@@ -4,11 +4,11 @@ go 1.20
 
 require (
 	github.com/cosmos/cosmos-sdk v0.50.5
-	github.com/cosmos/gogoproto v1.4.11
 	github.com/decred/dcrd/bech32 v1.1.3
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.2
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/ethereum/go-ethereum v1.13.1
+	github.com/gogo/protobuf v1.3.3
 	github.com/google/uuid v1.6.0
 	github.com/iden3/go-circuits/v2 v2.2.0
 	github.com/iden3/go-iden3-core/v2 v2.1.0
@@ -20,6 +20,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rarimo/go-jwz v1.0.3
 	github.com/rarimo/rarimo-core v1.1.0
+	github.com/tendermint/tendermint v0.34.27
 	google.golang.org/grpc v1.62.0
 )
 
@@ -70,12 +71,10 @@ require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
-	github.com/gogo/protobuf v1.3.3 // indirect
 	github.com/golang/glog v1.2.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
 	github.com/google/btree v1.1.2 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
@@ -135,7 +134,6 @@ require (
 	github.com/tendermint/btcd v0.1.1 // indirect
 	github.com/tendermint/crypto v0.0.0-20191022145703-50d29ede1e15 // indirect
 	github.com/tendermint/go-amino v0.16.0 // indirect
-	github.com/tendermint/tendermint v0.34.27 // indirect
 	github.com/tendermint/tm-db v0.6.7 // indirect
 	github.com/tetratelabs/wazero v1.1.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
@@ -148,7 +146,6 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/crypto v0.22.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
-	golang.org/x/mobile v0.0.0-20240404231514-09dbf07665ed // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
@@ -167,7 +164,9 @@ require (
 )
 
 replace (
-	github.com/agl/ed25519 => github.com/bnb-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
+	//github.com/99designs/go-keychain => github.com/keybase/go-keychain v0.0.0-20231219164618-57a3676c3af6
+	github.com/99designs/keyring => github.com/99designs/keyring v1.2.2
+	//github.com/agl/ed25519 => github.com/bnb-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 	github.com/btcsuite/btcd => github.com/btcsuite/btcd v0.22.0-beta
 	github.com/confio/ics23/go => github.com/cosmos/cosmos-sdk/ics23/go v0.8.0
 	github.com/cosmos/cosmos-sdk => github.com/rarimo/cosmos-sdk v0.46.7

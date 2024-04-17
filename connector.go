@@ -312,19 +312,19 @@ func WalletGetAddress(pk string, addressPrefix string) (string, error) {
 	return w.Address, nil
 }
 
-func WalletSignDirect(pk string, addressPrefix string, signDoc []byte) ([]byte, error) {
-	w, err := wallet.NewWallet(pk, addressPrefix)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error creating wallet")
-	}
-
-	signedBytes, err := w.SignDirect(w.Address, signDoc)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error signing")
-	}
-
-	return signedBytes, nil
-}
+//func WalletSignDirect(pk string, addressPrefix string, signDoc []byte) ([]byte, error) {
+//	w, err := wallet.NewWallet(pk, addressPrefix)
+//	if err != nil {
+//		return nil, errors.Wrap(err, "Error creating wallet")
+//	}
+//
+//	signedBytes, err := w.SignDirect(w.Address, signDoc)
+//	if err != nil {
+//		return nil, errors.Wrap(err, "Error signing")
+//	}
+//
+//	return signedBytes, nil
+//}
 
 func WalletSend(pk string, addressPrefix, fromAddr, toAddr string, amount int64, denom string) ([]byte, error) {
 	w, err := wallet.NewWallet(pk, addressPrefix)
