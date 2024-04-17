@@ -1,7 +1,7 @@
 package client
 
 import (
-	"github.com/rarimo/zkp-iden3-exposer/internal/wallet"
+	"github.com/rarimo/zkp-iden3-exposer/wallet"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"testing"

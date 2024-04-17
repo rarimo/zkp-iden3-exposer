@@ -12,9 +12,9 @@ import (
 	"github.com/iden3/go-schema-processor/v2/merklize"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
-	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/contracts"
-	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/overrides"
-	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/types"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/contracts"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/overrides"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/types"
 	"math/big"
 	"net/http"
 )

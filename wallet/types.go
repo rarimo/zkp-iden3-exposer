@@ -1,7 +1,7 @@
 package wallet
 
 import (
-	"github.com/rarimo/zkp-iden3-exposer/internal/wallet/overrides"
+	"github.com/rarimo/zkp-iden3-exposer/wallet/overrides"
 )
 
 type Account struct {

@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"github.com/decred/dcrd/bech32"
 	"github.com/pkg/errors"
-	"github.com/rarimo/zkp-iden3-exposer/internal/wallet/overrides"
+	"github.com/rarimo/zkp-iden3-exposer/wallet/overrides"
 	"strings"
 )
 

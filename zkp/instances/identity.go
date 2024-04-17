@@ -8,9 +8,9 @@ import (
 	"github.com/iden3/go-merkletree-sql/v2"
 	merkletree_db_memory "github.com/iden3/go-merkletree-sql/v2/db/memory"
 	"github.com/pkg/errors"
-	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/constants"
-	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/helpers"
-	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/types"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/constants"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/helpers"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/types"
 	"math/big"
 )
 

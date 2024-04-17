@@ -14,7 +14,7 @@ import (
 	bank "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/pkg/errors"
 	ethermint "github.com/rarimo/rarimo-core/ethermint/types"
-	"github.com/rarimo/zkp-iden3-exposer/internal/wallet"
+	"github.com/rarimo/zkp-iden3-exposer/wallet"
 	"google.golang.org/grpc"
 )
 

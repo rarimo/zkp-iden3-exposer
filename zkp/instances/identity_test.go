@@ -1,7 +1,7 @@
 package instances
 
 import (
-	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/types"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/types"
 	"testing"
 )
 
