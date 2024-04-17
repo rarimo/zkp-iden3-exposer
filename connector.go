@@ -9,16 +9,14 @@ import (
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/go-jwz"
-	"github.com/rarimo/zkp-iden3-exposer/internal/client"
 	"github.com/rarimo/zkp-iden3-exposer/internal/wallet"
 	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/instances"
 	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/internal/zkp/types"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
 	"net/http"
-	"time"
 )
+
+type Connector struct{}
 
 func getIdentity(identityConfig []byte) (*instances.Identity, error) {
 	config := types.IdentityConfig{}
@@ -52,7 +50,7 @@ func getIdentity(identityConfig []byte) (*instances.Identity, error) {
 	return identity, nil
 }
 
-func GetOfferJson(issuerApi string, identityDidString string, claimType string) ([]byte, error) {
+func (c *Connector) GetOfferJson(issuerApi string, identityDidString string, claimType string) ([]byte, error) {
 	offer := types.ClaimOffer{}
 
 	response, err := http.Get(issuerApi + "/v1/credentials/" + identityDidString + "/" + claimType)
@@ -74,7 +72,7 @@ func GetOfferJson(issuerApi string, identityDidString string, claimType string) 
 	return offerJson, nil
 }
 
-func GetDidString(identityConfig []byte) (string, error) {
+func (c *Connector) GetDidString(identityConfig []byte) (string, error) {
 	identity, err := getIdentity(identityConfig)
 
 	if err != nil {
@@ -84,7 +82,7 @@ func GetDidString(identityConfig []byte) (string, error) {
 	return identity.DID.String(), nil
 }
 
-func GetIdBigIntString(identityConfig []byte) (string, error) {
+func (c *Connector) GetIdBigIntString(identityConfig []byte) (string, error) {
 	identity, err := getIdentity(identityConfig)
 
 	if err != nil {
@@ -100,7 +98,7 @@ func GetIdBigIntString(identityConfig []byte) (string, error) {
 	return id.BigInt().String(), nil
 }
 
-func GetAuthV2Inputs(
+func (c *Connector) GetAuthV2Inputs(
 	identityConfig []byte,
 	offerJson []byte,
 ) ([]byte, error) {
@@ -147,7 +145,7 @@ func GetAuthV2Inputs(
 	return authV2Inputs, nil
 }
 
-func GetVC(
+func (c *Connector) GetVC(
 	identityConfig []byte,
 	offerJson []byte,
 	proofRaw []byte,
@@ -187,7 +185,7 @@ func GetVC(
 	return vcJson, nil
 }
 
-func GetAtomicQueryMTVV2OnChainInputs(
+func (c *Connector) GetAtomicQueryMTVV2OnChainInputs(
 	identityConfig []byte,
 	jsonVC []byte,
 
@@ -303,7 +301,7 @@ func GetAtomicQueryMTVV2OnChainInputs(
 	return inputs, nil
 }
 
-func WalletGetAddress(pk string, addressPrefix string) (string, error) {
+func (c *Connector) WalletGetAddress(pk string, addressPrefix string) (string, error) {
 	w, err := wallet.NewWallet(pk, addressPrefix)
 	if err != nil {
 		return "", errors.Wrap(err, "Error creating wallet")
@@ -312,7 +310,7 @@ func WalletGetAddress(pk string, addressPrefix string) (string, error) {
 	return w.Address, nil
 }
 
-func WalletSignDirect(pk string, addressPrefix string, signDoc []byte) ([]byte, error) {
+func (c *Connector) WalletSignDirect(pk string, addressPrefix string, signDoc []byte) ([]byte, error) {
 	w, err := wallet.NewWallet(pk, addressPrefix)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating wallet")
@@ -326,52 +324,52 @@ func WalletSignDirect(pk string, addressPrefix string, signDoc []byte) ([]byte, 
 	return signedBytes, nil
 }
 
-func WalletSend(pk string, addressPrefix, fromAddr, toAddr string, amount int64, denom string) ([]byte, error) {
-	w, err := wallet.NewWallet(pk, addressPrefix)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error creating wallet")
-	}
+//func (c *Connector) WalletSend(pk string, addressPrefix, fromAddr, toAddr string, amount int64, denom string) ([]byte, error) {
+//	w, err := wallet.NewWallet(pk, addressPrefix)
+//	if err != nil {
+//		return nil, errors.Wrap(err, "Error creating wallet")
+//	}
+//
+//	grpcClient, err := grpc.Dial(
+//		"104.196.227.66:9090",
+//		//"rpc-api.node1.mainnet-beta.rarimo.com:443",
+//		//"rpc.node1.mainnet-beta.rarimo.com:443",
+//		grpc.WithInsecure(),
+//		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+//			Time:    10 * time.Second, // wait time before ping if no activity
+//			Timeout: 20 * time.Second, // ping timeout
+//		}),
+//	)
+//	if err != nil {
+//		return nil, errors.Wrap(err, "Error dialing grpc")
+//	}
+//
+//	client := client.Client{
+//		Cli:      grpcClient,
+//		Signer:   *w,
+//		ChainId:  "rarimo_42-1",
+//		Prefix:   addressPrefix,
+//		GasLimit: 1000000,
+//		GasPrice: 0,
+//	}
+//
+//	txResp, err := client.Send(
+//		fromAddr,
+//		toAddr,
+//		amount,
+//		denom,
+//	)
+//	if err != nil {
+//		return nil, errors.Wrap(err, "Error sending tx")
+//	}
+//
+//	return txResp, nil
+//}
 
-	grpcClient, err := grpc.Dial(
-		"104.196.227.66:9090",
-		//"rpc-api.node1.mainnet-beta.rarimo.com:443",
-		//"rpc.node1.mainnet-beta.rarimo.com:443",
-		grpc.WithInsecure(),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    10 * time.Second, // wait time before ping if no activity
-			Timeout: 20 * time.Second, // ping timeout
-		}),
-	)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error dialing grpc")
-	}
+//func (c *Connector) RemoveCredentials() {}
 
-	client := client.Client{
-		Cli:      grpcClient,
-		Signer:   *w,
-		ChainId:  "rarimo_42-1",
-		Prefix:   addressPrefix,
-		GasLimit: 1000000,
-		GasPrice: 0,
-	}
+//func (c *Connector) GetCredentials() {}
 
-	txResp, err := client.Send(
-		fromAddr,
-		toAddr,
-		amount,
-		denom,
-	)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error sending tx")
-	}
+//func (c *Connector) CheckStateContractSync() {}
 
-	return txResp, nil
-}
-
-//func RemoveCredentials() {}
-
-//func GetCredentials() {}
-
-//func CheckStateContractSync() {}
-
-//func CheckCredentialExistence() {}
+//func (c *Connector) CheckCredentialExistence() {}
