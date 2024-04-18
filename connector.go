@@ -13,54 +13,93 @@ import (
 	"github.com/rarimo/zkp-iden3-exposer/wallet"
 	"github.com/rarimo/zkp-iden3-exposer/zkp/instances"
 	"github.com/rarimo/zkp-iden3-exposer/zkp/overrides"
-	"github.com/rarimo/zkp-iden3-exposer/zkp/types"
+	zkpTypes "github.com/rarimo/zkp-iden3-exposer/zkp/types"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	"net/http"
+	"time"
 )
 
 type Connector struct {
+	PkHex string `json:"pkHex"`
+
+	IdType        []byte `json:"idType"`
+	SchemaHashHex string `json:"schemaHashHex"`
+
+	TargetChainId              int    `json:"targetChainId"`
+	TargetRpcUrl               string `json:"targetRpcUrl"`
+	TargetStateContractAddress string `json:"targetStateContractAddress"`
+
+	CoreApiUrl               string `json:"coreApiUrl"`
+	CoreEvmRpcApiUrl         string `json:"coreEvmRpcApiUrl"`
+	CoreStateContractAddress string `json:"coreStateContractAddress"`
+
 	ChainId     string `json:"chainId"`
+	AddrPrefix  string `json:"addrPrefix"`
 	Denom       string `json:"denom"`
-	Addr        string `json:"addr"`
-	MinGasPrice uint64 `json:"minGasPrice"`
-	GasLimit    uint64 `json:"gasLimit"`
-	TLS         bool   `json:"tls"`
+	RpcApi      string `json:"rpcApi"`
+	MinGasPrice int    `json:"minGasPrice"`
+	GasLimit    int    `json:"gasLimit"`
+	IsTLS       bool   `json:"tls"`
 }
 
-func NewConnector(chainId string, denom string, addr string, minGasPrice uint64, gasLimit uint64, tls bool) *Connector {
+func NewConnector(
+	pkHex string,
+	idType []byte,
+	schemaHashHex string,
+	targetChainId int,
+	targetRpcUrl string,
+	targetStateContractAddress string,
+	coreApiUrl string,
+	coreEvmRpcApiUrl string,
+	coreStateContractAddress string,
+	chainId string,
+	addrPrefix string,
+	denom string,
+	rpcApi string,
+	minGasPrice int,
+	gasLimit int,
+	isTls bool,
+) *Connector {
 	return &Connector{
+		PkHex:                      pkHex,
+		IdType:                     idType,
+		SchemaHashHex:              schemaHashHex,
+		TargetChainId:              targetChainId,
+		TargetRpcUrl:               targetRpcUrl,
+		TargetStateContractAddress: targetStateContractAddress,
+		CoreApiUrl:                 coreApiUrl,
+		CoreEvmRpcApiUrl:           coreEvmRpcApiUrl,
+		CoreStateContractAddress:   coreStateContractAddress,
+
 		ChainId:     chainId,
+		AddrPrefix:  addrPrefix,
 		Denom:       denom,
-		Addr:        addr,
+		RpcApi:      rpcApi,
 		MinGasPrice: minGasPrice,
 		GasLimit:    gasLimit,
-		TLS:         tls,
+		IsTLS:       isTls,
 	}
 }
 
-func getIdentity(identityConfig []byte) (*instances.Identity, error) {
-	config := types.IdentityConfig{}
-
-	if err := json.Unmarshal(identityConfig, &config); err != nil {
-		return nil, errors.Wrap(err, "Error unmarshalling identity config")
-	}
-
-	if config.PkHex == "" || &config.PkHex == nil {
+func getIdentityInstance(identityConfig zkpTypes.IdentityConfig) (*instances.Identity, error) {
+	if identityConfig.PkHex == "" || &identityConfig.PkHex == nil {
 		return nil, errors.New("Private key is required")
 	}
 
 	identity, err := instances.NewIdentity(instances.IdentityConfig{
-		IdType:        config.IdType,
-		SchemaHashHex: config.SchemaHashHex,
-		ChainInfo: types.ChainZkpInfo{
-			TargetChainId:              config.TargetChainId,
-			TargetRpcUrl:               config.TargetRpcUrl,
-			TargetStateContractAddress: config.TargetStateContractAddress,
+		IdType:        identityConfig.IdType,
+		SchemaHashHex: identityConfig.SchemaHashHex,
+		ChainInfo: zkpTypes.ChainZkpInfo{
+			TargetChainId:              identityConfig.TargetChainId,
+			TargetRpcUrl:               identityConfig.TargetRpcUrl,
+			TargetStateContractAddress: identityConfig.TargetStateContractAddress,
 
-			CoreApiUrl:               config.CoreApiUrl,
-			CoreEvmRpcApiUrl:         config.CoreEvmRpcApiUrl,
-			CoreStateContractAddress: config.CoreStateContractAddress,
+			CoreApiUrl:               identityConfig.CoreApiUrl,
+			CoreEvmRpcApiUrl:         identityConfig.CoreEvmRpcApiUrl,
+			CoreStateContractAddress: identityConfig.CoreStateContractAddress,
 		},
-	}, &config.PkHex)
+	}, &identityConfig.PkHex)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating identity")
@@ -69,8 +108,22 @@ func getIdentity(identityConfig []byte) (*instances.Identity, error) {
 	return identity, nil
 }
 
+func (c *Connector) getIdentityConfig() *zkpTypes.IdentityConfig {
+	return &zkpTypes.IdentityConfig{
+		PkHex:                      c.PkHex,
+		IdType:                     [2]byte(c.IdType),
+		SchemaHashHex:              c.SchemaHashHex,
+		TargetChainId:              c.TargetChainId,
+		TargetRpcUrl:               c.TargetRpcUrl,
+		TargetStateContractAddress: c.TargetStateContractAddress,
+		CoreApiUrl:                 c.CoreApiUrl,
+		CoreEvmRpcApiUrl:           c.CoreEvmRpcApiUrl,
+		CoreStateContractAddress:   c.CoreStateContractAddress,
+	}
+}
+
 func (c *Connector) GetOfferJson(issuerApi string, identityDidString string, claimType string) ([]byte, error) {
-	offer := types.ClaimOffer{}
+	offer := zkpTypes.ClaimOffer{}
 
 	response, err := http.Get(issuerApi + "/v1/credentials/" + identityDidString + "/" + claimType)
 
@@ -91,8 +144,8 @@ func (c *Connector) GetOfferJson(issuerApi string, identityDidString string, cla
 	return offerJson, nil
 }
 
-func (c *Connector) GetDidString(identityConfig []byte) (string, error) {
-	identity, err := getIdentity(identityConfig)
+func (c *Connector) GetDidString() (string, error) {
+	identity, err := getIdentityInstance(*c.getIdentityConfig())
 
 	if err != nil {
 		return "", errors.Wrap(err, "Error getting identity")
@@ -101,40 +154,32 @@ func (c *Connector) GetDidString(identityConfig []byte) (string, error) {
 	return identity.DID.String(), nil
 }
 
-func (c *Connector) GetIdBigIntString(identityConfig []byte) (string, error) {
-	identity, err := getIdentity(identityConfig)
-
+func (c *Connector) GetIdBigIntString() (string, error) {
+	identity, err := getIdentityInstance(*c.getIdentityConfig())
 	if err != nil {
 		return "", errors.Wrap(err, "Error getting identity")
 	}
 
 	id, err := identity.ID()
-
 	if err != nil {
-		return "", nil
+		return "", errors.Wrap(err, "Error getting ID")
 	}
 
 	return id.BigInt().String(), nil
 }
 
-func (c *Connector) GetAuthV2Inputs(
-	identityConfig []byte,
-	offerJson []byte,
-) ([]byte, error) {
-	identity, err := getIdentity(identityConfig)
-
+func (c *Connector) GetAuthV2Inputs(offerJson []byte) ([]byte, error) {
+	identity, err := getIdentityInstance(*c.getIdentityConfig())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting identity")
 	}
 
-	offer := types.ClaimOffer{}
-
+	offer := zkpTypes.ClaimOffer{}
 	if err := json.Unmarshal(offerJson, &offer); err != nil {
 		return nil, errors.Wrap(err, "Error unmarshalling offer")
 	}
 
 	claimDetailsJson, err := instances.GetClaimDetailsJson(offer)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting claim details")
 	}
@@ -148,6 +193,9 @@ func (c *Connector) GetAuthV2Inputs(
 		claimDetailsJson,
 		preparer,
 	)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating JWZ token")
+	}
 
 	messageHash, err := token.GetMessageHash()
 
@@ -165,18 +213,15 @@ func (c *Connector) GetAuthV2Inputs(
 }
 
 func (c *Connector) GetVC(
-	identityConfig []byte,
 	offerJson []byte,
 	proofRaw []byte,
 ) ([]byte, error) {
-	identity, err := getIdentity(identityConfig)
-
+	identity, err := getIdentityInstance(*c.getIdentityConfig())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting identity")
 	}
 
-	offer := types.ClaimOffer{}
-
+	offer := zkpTypes.ClaimOffer{}
 	if err := json.Unmarshal(offerJson, &offer); err != nil {
 		return nil, errors.Wrap(err, "Error unmarshalling offer")
 	}
@@ -184,19 +229,16 @@ func (c *Connector) GetVC(
 	claimDetailsJson, err := instances.GetClaimDetailsJson(offer)
 
 	jwzToken, err := instances.GetJWZToken(*identity, claimDetailsJson, proofRaw)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting JWZ token")
 	}
 
 	vc, err := instances.LoadVC(offer.Body.Url, *jwzToken)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Error loading VC")
 	}
 
 	vcJson, err := json.Marshal(vc)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Error marshalling VC")
 	}
@@ -205,7 +247,6 @@ func (c *Connector) GetVC(
 }
 
 func (c *Connector) GetAtomicQueryMTVV2OnChainInputs(
-	identityConfig []byte,
 	jsonVC []byte,
 
 	circuitId string,
@@ -215,16 +256,15 @@ func (c *Connector) GetAtomicQueryMTVV2OnChainInputs(
 	subjectFieldValue string,
 	operator int,
 ) ([]byte, error) {
-	identity, err := getIdentity(identityConfig)
-
+	identity, err := getIdentityInstance(*c.getIdentityConfig())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting identity")
 	}
 
-	proofRequest := types.CreateProofRequest{
+	proofRequest := zkpTypes.CreateProofRequest{
 		CircuitId: circuits.CircuitID(circuitId),
 		Challenge: challenge,
-		Query: types.ProofQuery{
+		Query: zkpTypes.ProofQuery{
 			SubjectFieldName:  subjectFieldName,
 			SubjectFieldValue: subjectFieldValue,
 			Operator:          operator,
@@ -232,7 +272,6 @@ func (c *Connector) GetAtomicQueryMTVV2OnChainInputs(
 	}
 
 	vc := overrides.W3CCredential{}
-
 	if err := json.Unmarshal(jsonVC, &vc); err != nil {
 		return nil, errors.Wrap(err, "Error unmarshalling vc")
 	}
@@ -260,7 +299,6 @@ func (c *Connector) GetAtomicQueryMTVV2OnChainInputs(
 	response, _ := http.Get(identity.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/identity/state/" + issuerHexId)
 
 	stateInfoResponse := StateInfoResponse{}
-
 	if err := json.NewDecoder(response.Body).Decode(&stateInfoResponse); err != nil {
 		return nil, errors.Wrap(err, "Error decoding response")
 	}
@@ -297,7 +335,6 @@ func (c *Connector) GetAtomicQueryMTVV2OnChainInputs(
 	response, _ = http.Get(identity.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/rarimocore/operation/" + stateInfoResponse.State.LastUpdateOperationIndex)
 
 	operationResponse := OperationResponse{}
-
 	if err := json.NewDecoder(response.Body).Decode(&operationResponse); err != nil {
 		return nil, errors.Wrap(err, "Error decoding operation response")
 	}
@@ -312,7 +349,6 @@ func (c *Connector) GetAtomicQueryMTVV2OnChainInputs(
 	)
 
 	inputs, err := atomicQueryMTPV2OnChainProof.GetInputs()
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting inputs")
 	}
@@ -320,8 +356,8 @@ func (c *Connector) GetAtomicQueryMTVV2OnChainInputs(
 	return inputs, nil
 }
 
-func (c *Connector) WalletGetAddress(pk string, addressPrefix string) (string, error) {
-	w, err := wallet.NewWallet(pk, addressPrefix)
+func (c *Connector) WalletGetAddress() (string, error) {
+	w, err := wallet.NewWallet(c.PkHex, c.AddrPrefix)
 	if err != nil {
 		return "", errors.Wrap(err, "Error creating wallet")
 	}
@@ -329,35 +365,34 @@ func (c *Connector) WalletGetAddress(pk string, addressPrefix string) (string, e
 	return w.Address, nil
 }
 
-func (c *Connector) WalletSignDirect(pk string, addressPrefix string, signDoc []byte) ([]byte, error) {
-	w, err := wallet.NewWallet(pk, addressPrefix)
+func (c *Connector) WalletSend(fromAddr, toAddr string, amount int64) ([]byte, error) {
+	w, err := wallet.NewWallet(c.PkHex, c.AddrPrefix)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating wallet")
 	}
 
-	signedBytes, err := w.SignDirect(w.Address, signDoc)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error signing")
+	chainConfig := client.ChainConfig{
+		ChainId:     c.ChainId,
+		Denom:       c.Denom,
+		MinGasPrice: uint64(c.MinGasPrice),
+		GasLimit:    uint64(c.GasLimit),
 	}
 
-	return signedBytes, nil
-}
-
-func (c *Connector) WalletSend(pk string, addressPrefix, fromAddr, toAddr string, amount int64, denom string) ([]byte, error) {
-	w, err := wallet.NewWallet(pk, addressPrefix)
+	grpcClient, err := grpc.Dial(
+		c.RpcApi,
+		grpc.WithInsecure(),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    10 * time.Second, // wait time before ping if no activity
+			Timeout: 20 * time.Second, // ping timeout
+		}),
+	)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error creating wallet")
+		return nil, errors.Wrap(err, "Error dialing grpc")
 	}
 
 	rarimoClient, err := client.NewClient(
-		client.ChainConfig{
-			ChainId:     "rarimo_42-1",
-			Denom:       "stake",
-			Addr:        "104.196.227.66:9090",
-			MinGasPrice: 0,
-			GasLimit:    1000000,
-			TLS:         true,
-		},
+		grpcClient,
+		chainConfig,
 		*w,
 	)
 	if err != nil {
@@ -368,7 +403,7 @@ func (c *Connector) WalletSend(pk string, addressPrefix, fromAddr, toAddr string
 		fromAddr,
 		toAddr,
 		amount,
-		denom,
+		c.Denom,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error sending tx")

@@ -16,17 +16,13 @@ import (
 	ethermint "github.com/rarimo/rarimo-core/ethermint/types"
 	"github.com/rarimo/zkp-iden3-exposer/wallet"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
-	"time"
 )
 
 type ChainConfig struct {
 	ChainId     string `json:"chainId"`
 	Denom       string `json:"denom"`
-	Addr        string `json:"addr"`
 	MinGasPrice uint64 `json:"minGasPrice"`
 	GasLimit    uint64 `json:"gasLimit"`
-	TLS         bool   `json:"tls"`
 }
 
 type Client struct {
@@ -35,21 +31,9 @@ type Client struct {
 	ChainConfig ChainConfig
 }
 
-func NewClient(chainConfig ChainConfig, signer wallet.Wallet) (*Client, error) {
-	grpcClient, err := grpc.Dial(
-		chainConfig.Addr,
-		grpc.WithInsecure(),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    10 * time.Second, // wait time before ping if no activity
-			Timeout: 20 * time.Second, // ping timeout
-		}),
-	)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to dial grpc")
-	}
-
+func NewClient(cli *grpc.ClientConn, chainConfig ChainConfig, signer wallet.Wallet) (*Client, error) {
 	return &Client{
-		Cli:         grpcClient,
+		Cli:         cli,
 		Signer:      signer,
 		ChainConfig: chainConfig,
 	}, nil
