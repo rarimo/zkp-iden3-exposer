@@ -9,17 +9,33 @@ import (
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/go-jwz"
+	"github.com/rarimo/zkp-iden3-exposer/client"
 	"github.com/rarimo/zkp-iden3-exposer/wallet"
 	"github.com/rarimo/zkp-iden3-exposer/zkp/instances"
 	"github.com/rarimo/zkp-iden3-exposer/zkp/overrides"
 	"github.com/rarimo/zkp-iden3-exposer/zkp/types"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
 	"net/http"
-	"time"
 )
 
-type Connector struct{}
+type Connector struct {
+	ChainId     string `json:"chainId"`
+	Denom       string `json:"denom"`
+	Addr        string `json:"addr"`
+	MinGasPrice uint64 `json:"minGasPrice"`
+	GasLimit    uint64 `json:"gasLimit"`
+	TLS         bool   `json:"tls"`
+}
+
+func NewConnector(chainId string, denom string, addr string, minGasPrice uint64, gasLimit uint64, tls bool) *Connector {
+	return &Connector{
+		ChainId:     chainId,
+		Denom:       denom,
+		Addr:        addr,
+		MinGasPrice: minGasPrice,
+		GasLimit:    gasLimit,
+		TLS:         tls,
+	}
+}
 
 func getIdentity(identityConfig []byte) (*instances.Identity, error) {
 	config := types.IdentityConfig{}
@@ -333,30 +349,22 @@ func (c *Connector) WalletSend(pk string, addressPrefix, fromAddr, toAddr string
 		return nil, errors.Wrap(err, "Error creating wallet")
 	}
 
-	grpcClient, err := grpc.Dial(
-		"104.196.227.66:9090",
-		//"rpc-api.node1.mainnet-beta.rarimo.com:443",
-		//"rpc.node1.mainnet-beta.rarimo.com:443",
-		grpc.WithInsecure(),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    10 * time.Second, // wait time before ping if no activity
-			Timeout: 20 * time.Second, // ping timeout
-		}),
+	rarimoClient, err := client.NewClient(
+		client.ChainConfig{
+			ChainId:     "rarimo_42-1",
+			Denom:       "stake",
+			Addr:        "104.196.227.66:9090",
+			MinGasPrice: 0,
+			GasLimit:    1000000,
+			TLS:         true,
+		},
+		*w,
 	)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error dialing grpc")
+		return nil, errors.Wrap(err, "Error creating client")
 	}
 
-	client := client.Client{
-		Cli:      grpcClient,
-		Signer:   *w,
-		ChainId:  "rarimo_42-1",
-		Prefix:   addressPrefix,
-		GasLimit: 1000000,
-		GasPrice: 0,
-	}
-
-	txResp, err := client.Send(
+	txResp, err := rarimoClient.Send(
 		fromAddr,
 		toAddr,
 		amount,

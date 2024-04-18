@@ -2,10 +2,7 @@ package client
 
 import (
 	"github.com/rarimo/zkp-iden3-exposer/wallet"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
 	"testing"
-	"time"
 )
 
 func TestClient(t *testing.T) {
@@ -17,29 +14,18 @@ func TestClient(t *testing.T) {
 		t.Errorf("Error creating wallet: %v", err)
 	}
 
-	grpcClient, err := grpc.Dial(
-		"104.196.227.66:9090",
-		//"rpc-api.node1.mainnet-beta.rarimo.com:443",
-		//"rpc.node1.mainnet-beta.rarimo.com:443",
-		grpc.WithInsecure(),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    10 * time.Second, // wait time before ping if no activity
-			Timeout: 20 * time.Second, // ping timeout
-		}),
-	)
-	if err != nil {
-		t.Errorf("Error dialing grpc: %v", err)
-	}
-
 	t.Run("Should Send tokens", func(t *testing.T) {
-		client := Client{
-			Cli:      grpcClient,
-			Signer:   *w,
-			ChainId:  "rarimo_42-1",
-			Prefix:   addressPrefix,
-			GasLimit: 1000000,
-			GasPrice: 0,
-		}
+		client, err := NewClient(
+			ChainConfig{
+				ChainId:     "rarimo_42-1",
+				Denom:       "stake",
+				Addr:        "104.196.227.66:9090",
+				MinGasPrice: 0,
+				GasLimit:    1000000,
+				TLS:         true,
+			},
+			*w,
+		)
 
 		txResp, err := client.Send(
 			w.Address,

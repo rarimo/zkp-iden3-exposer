@@ -16,15 +16,43 @@ import (
 	ethermint "github.com/rarimo/rarimo-core/ethermint/types"
 	"github.com/rarimo/zkp-iden3-exposer/wallet"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
+	"time"
 )
 
+type ChainConfig struct {
+	ChainId     string `json:"chainId"`
+	Denom       string `json:"denom"`
+	Addr        string `json:"addr"`
+	MinGasPrice uint64 `json:"minGasPrice"`
+	GasLimit    uint64 `json:"gasLimit"`
+	TLS         bool   `json:"tls"`
+}
+
 type Client struct {
-	Cli      *grpc.ClientConn
-	Signer   wallet.Wallet
-	ChainId  string
-	Prefix   string
-	GasLimit int
-	GasPrice int
+	Cli         *grpc.ClientConn
+	Signer      wallet.Wallet
+	ChainConfig ChainConfig
+}
+
+func NewClient(chainConfig ChainConfig, signer wallet.Wallet) (*Client, error) {
+	grpcClient, err := grpc.Dial(
+		chainConfig.Addr,
+		grpc.WithInsecure(),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    10 * time.Second, // wait time before ping if no activity
+			Timeout: 20 * time.Second, // ping timeout
+		}),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to dial grpc")
+	}
+
+	return &Client{
+		Cli:         grpcClient,
+		Signer:      signer,
+		ChainConfig: chainConfig,
+	}, nil
 }
 
 func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
@@ -39,12 +67,12 @@ func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
 		return nil, errors.Wrap(err, "Failed to set messages")
 	}
 
-	builder.SetGasLimit(uint64(c.GasLimit))
+	builder.SetGasLimit(c.ChainConfig.GasLimit)
 	builder.SetFeeAmount(
 		sdk.Coins{
 			sdk.Coin{
-				Denom:  "stake",
-				Amount: sdk.NewInt(int64(c.GasLimit * c.GasPrice)),
+				Denom:  c.ChainConfig.Denom,
+				Amount: sdk.NewInt(int64(c.ChainConfig.GasLimit * c.ChainConfig.MinGasPrice)),
 			},
 		},
 	)
@@ -54,13 +82,13 @@ func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
 		&authtypes.QueryAccountRequest{Address: c.Signer.Address},
 	)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, errors.Wrap(err, "Failed to get account")
 	}
 
 	account := ethermint.EthAccount{}
 	err = account.Unmarshal(accountResp.Account.Value)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, errors.Wrap(err, "Failed to unmarshal account")
 	}
 
 	accountSequence := account.GetSequence()
@@ -74,11 +102,11 @@ func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
 		Sequence: accountSequence,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, errors.Wrap(err, "Failed to set signature")
 	}
 
 	signerData := xauthsigning.SignerData{
-		ChainID:       c.ChainId,
+		ChainID:       c.ChainConfig.ChainId,
 		AccountNumber: account.AccountNumber,
 		Sequence:      accountSequence,
 	}
@@ -114,7 +142,7 @@ func (c *Client) submitTx(msgs ...sdk.Msg) ([]byte, error) {
 
 	tx, err := txConfig.TxEncoder()(builder.GetTx())
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, errors.Wrap(err, "Failed to encode tx")
 	}
 
 	grpcRes, err := client.NewServiceClient(c.Cli).BroadcastTx(
