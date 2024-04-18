@@ -9,36 +9,97 @@ import (
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 	"github.com/rarimo/go-jwz"
-	"github.com/rarimo/zkp-iden3-exposer/instances"
-	"github.com/rarimo/zkp-iden3-exposer/overrides"
-	"github.com/rarimo/zkp-iden3-exposer/types"
+	"github.com/rarimo/zkp-iden3-exposer/client"
+	"github.com/rarimo/zkp-iden3-exposer/wallet"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/instances"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/overrides"
+	zkpTypes "github.com/rarimo/zkp-iden3-exposer/zkp/types"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	"net/http"
+	"time"
 )
 
-func getIdentity(identityConfig []byte) (*instances.Identity, error) {
-	config := types.IdentityConfig{}
+type Connector struct {
+	PkHex string `json:"pkHex"`
 
-	if err := json.Unmarshal(identityConfig, &config); err != nil {
-		return nil, errors.Wrap(err, "Error unmarshalling identity config")
+	IdType        []byte `json:"idType"`
+	SchemaHashHex string `json:"schemaHashHex"`
+
+	TargetChainId              int    `json:"targetChainId"`
+	TargetRpcUrl               string `json:"targetRpcUrl"`
+	TargetStateContractAddress string `json:"targetStateContractAddress"`
+
+	CoreApiUrl               string `json:"coreApiUrl"`
+	CoreEvmRpcApiUrl         string `json:"coreEvmRpcApiUrl"`
+	CoreStateContractAddress string `json:"coreStateContractAddress"`
+
+	ChainId     string `json:"chainId"`
+	AddrPrefix  string `json:"addrPrefix"`
+	Denom       string `json:"denom"`
+	RpcApi      string `json:"rpcApi"`
+	MinGasPrice int    `json:"minGasPrice"`
+	GasLimit    int    `json:"gasLimit"`
+	IsTLS       bool   `json:"tls"`
+}
+
+func NewConnector(
+	pkHex string,
+	idType []byte,
+	schemaHashHex string,
+	targetChainId int,
+	targetRpcUrl string,
+	targetStateContractAddress string,
+	coreApiUrl string,
+	coreEvmRpcApiUrl string,
+	coreStateContractAddress string,
+	chainId string,
+	addrPrefix string,
+	denom string,
+	rpcApi string,
+	minGasPrice int,
+	gasLimit int,
+	isTls bool,
+) *Connector {
+	return &Connector{
+		PkHex:                      pkHex,
+		IdType:                     idType,
+		SchemaHashHex:              schemaHashHex,
+		TargetChainId:              targetChainId,
+		TargetRpcUrl:               targetRpcUrl,
+		TargetStateContractAddress: targetStateContractAddress,
+		CoreApiUrl:                 coreApiUrl,
+		CoreEvmRpcApiUrl:           coreEvmRpcApiUrl,
+		CoreStateContractAddress:   coreStateContractAddress,
+
+		ChainId:     chainId,
+		AddrPrefix:  addrPrefix,
+		Denom:       denom,
+		RpcApi:      rpcApi,
+		MinGasPrice: minGasPrice,
+		GasLimit:    gasLimit,
+		IsTLS:       isTls,
 	}
+}
 
-	if config.PkHex == "" || &config.PkHex == nil {
+func getIdentityInstance(identityConfig zkpTypes.IdentityConfig) (*instances.Identity, error) {
+	if identityConfig.PkHex == "" || &identityConfig.PkHex == nil {
 		return nil, errors.New("Private key is required")
 	}
 
 	identity, err := instances.NewIdentity(instances.IdentityConfig{
-		IdType:        config.IdType,
-		SchemaHashHex: config.SchemaHashHex,
-		ChainInfo: types.ChainZkpInfo{
-			TargetChainId:              config.TargetChainId,
-			TargetRpcUrl:               config.TargetRpcUrl,
-			TargetStateContractAddress: config.TargetStateContractAddress,
+		IdType:        identityConfig.IdType,
+		SchemaHashHex: identityConfig.SchemaHashHex,
+		ChainInfo: zkpTypes.ChainZkpInfo{
+			TargetChainId:              identityConfig.TargetChainId,
+			TargetRpcUrl:               identityConfig.TargetRpcUrl,
+			TargetStateContractAddress: identityConfig.TargetStateContractAddress,
 
-			CoreApiUrl:               config.CoreApiUrl,
-			CoreEvmRpcApiUrl:         config.CoreEvmRpcApiUrl,
-			CoreStateContractAddress: config.CoreStateContractAddress,
+			CoreApiUrl:               identityConfig.CoreApiUrl,
+			CoreEvmRpcApiUrl:         identityConfig.CoreEvmRpcApiUrl,
+			CoreStateContractAddress: identityConfig.CoreStateContractAddress,
 		},
-	}, &config.PkHex)
+	}, &identityConfig.PkHex)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating identity")
@@ -47,8 +108,22 @@ func getIdentity(identityConfig []byte) (*instances.Identity, error) {
 	return identity, nil
 }
 
-func GetOfferJson(issuerApi string, identityDidString string, claimType string) ([]byte, error) {
-	offer := types.ClaimOffer{}
+func (c *Connector) getIdentityConfig() *zkpTypes.IdentityConfig {
+	return &zkpTypes.IdentityConfig{
+		PkHex:                      c.PkHex,
+		IdType:                     [2]byte(c.IdType),
+		SchemaHashHex:              c.SchemaHashHex,
+		TargetChainId:              c.TargetChainId,
+		TargetRpcUrl:               c.TargetRpcUrl,
+		TargetStateContractAddress: c.TargetStateContractAddress,
+		CoreApiUrl:                 c.CoreApiUrl,
+		CoreEvmRpcApiUrl:           c.CoreEvmRpcApiUrl,
+		CoreStateContractAddress:   c.CoreStateContractAddress,
+	}
+}
+
+func (c *Connector) GetOfferJson(issuerApi string, identityDidString string, claimType string) ([]byte, error) {
+	offer := zkpTypes.ClaimOffer{}
 
 	response, err := http.Get(issuerApi + "/v1/credentials/" + identityDidString + "/" + claimType)
 
@@ -69,8 +144,8 @@ func GetOfferJson(issuerApi string, identityDidString string, claimType string) 
 	return offerJson, nil
 }
 
-func GetDidString(identityConfig []byte) (string, error) {
-	identity, err := getIdentity(identityConfig)
+func (c *Connector) GetDidString() (string, error) {
+	identity, err := getIdentityInstance(*c.getIdentityConfig())
 
 	if err != nil {
 		return "", errors.Wrap(err, "Error getting identity")
@@ -79,40 +154,32 @@ func GetDidString(identityConfig []byte) (string, error) {
 	return identity.DID.String(), nil
 }
 
-func GetIdBigIntString(identityConfig []byte) (string, error) {
-	identity, err := getIdentity(identityConfig)
-
+func (c *Connector) GetIdBigIntString() (string, error) {
+	identity, err := getIdentityInstance(*c.getIdentityConfig())
 	if err != nil {
 		return "", errors.Wrap(err, "Error getting identity")
 	}
 
 	id, err := identity.ID()
-
 	if err != nil {
-		return "", nil
+		return "", errors.Wrap(err, "Error getting ID")
 	}
 
 	return id.BigInt().String(), nil
 }
 
-func GetAuthV2Inputs(
-	identityConfig []byte,
-	offerJson []byte,
-) ([]byte, error) {
-	identity, err := getIdentity(identityConfig)
-
+func (c *Connector) GetAuthV2Inputs(offerJson []byte) ([]byte, error) {
+	identity, err := getIdentityInstance(*c.getIdentityConfig())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting identity")
 	}
 
-	offer := types.ClaimOffer{}
-
+	offer := zkpTypes.ClaimOffer{}
 	if err := json.Unmarshal(offerJson, &offer); err != nil {
 		return nil, errors.Wrap(err, "Error unmarshalling offer")
 	}
 
 	claimDetailsJson, err := instances.GetClaimDetailsJson(offer)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting claim details")
 	}
@@ -126,6 +193,9 @@ func GetAuthV2Inputs(
 		claimDetailsJson,
 		preparer,
 	)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating JWZ token")
+	}
 
 	messageHash, err := token.GetMessageHash()
 
@@ -142,19 +212,16 @@ func GetAuthV2Inputs(
 	return authV2Inputs, nil
 }
 
-func GetVC(
-	identityConfig []byte,
+func (c *Connector) GetVC(
 	offerJson []byte,
 	proofRaw []byte,
 ) ([]byte, error) {
-	identity, err := getIdentity(identityConfig)
-
+	identity, err := getIdentityInstance(*c.getIdentityConfig())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting identity")
 	}
 
-	offer := types.ClaimOffer{}
-
+	offer := zkpTypes.ClaimOffer{}
 	if err := json.Unmarshal(offerJson, &offer); err != nil {
 		return nil, errors.Wrap(err, "Error unmarshalling offer")
 	}
@@ -162,19 +229,16 @@ func GetVC(
 	claimDetailsJson, err := instances.GetClaimDetailsJson(offer)
 
 	jwzToken, err := instances.GetJWZToken(*identity, claimDetailsJson, proofRaw)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting JWZ token")
 	}
 
 	vc, err := instances.LoadVC(offer.Body.Url, *jwzToken)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Error loading VC")
 	}
 
 	vcJson, err := json.Marshal(vc)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Error marshalling VC")
 	}
@@ -182,8 +246,7 @@ func GetVC(
 	return vcJson, nil
 }
 
-func GetAtomicQueryMTVV2OnChainInputs(
-	identityConfig []byte,
+func (c *Connector) GetAtomicQueryMTVV2OnChainInputs(
 	jsonVC []byte,
 
 	circuitId string,
@@ -193,16 +256,15 @@ func GetAtomicQueryMTVV2OnChainInputs(
 	subjectFieldValue string,
 	operator int,
 ) ([]byte, error) {
-	identity, err := getIdentity(identityConfig)
-
+	identity, err := getIdentityInstance(*c.getIdentityConfig())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting identity")
 	}
 
-	proofRequest := types.CreateProofRequest{
+	proofRequest := zkpTypes.CreateProofRequest{
 		CircuitId: circuits.CircuitID(circuitId),
 		Challenge: challenge,
-		Query: types.ProofQuery{
+		Query: zkpTypes.ProofQuery{
 			SubjectFieldName:  subjectFieldName,
 			SubjectFieldValue: subjectFieldValue,
 			Operator:          operator,
@@ -210,7 +272,6 @@ func GetAtomicQueryMTVV2OnChainInputs(
 	}
 
 	vc := overrides.W3CCredential{}
-
 	if err := json.Unmarshal(jsonVC, &vc); err != nil {
 		return nil, errors.Wrap(err, "Error unmarshalling vc")
 	}
@@ -238,7 +299,6 @@ func GetAtomicQueryMTVV2OnChainInputs(
 	response, _ := http.Get(identity.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/identity/state/" + issuerHexId)
 
 	stateInfoResponse := StateInfoResponse{}
-
 	if err := json.NewDecoder(response.Body).Decode(&stateInfoResponse); err != nil {
 		return nil, errors.Wrap(err, "Error decoding response")
 	}
@@ -275,7 +335,6 @@ func GetAtomicQueryMTVV2OnChainInputs(
 	response, _ = http.Get(identity.Config.ChainInfo.CoreApiUrl + "/rarimo/rarimo-core/rarimocore/operation/" + stateInfoResponse.State.LastUpdateOperationIndex)
 
 	operationResponse := OperationResponse{}
-
 	if err := json.NewDecoder(response.Body).Decode(&operationResponse); err != nil {
 		return nil, errors.Wrap(err, "Error decoding operation response")
 	}
@@ -290,7 +349,6 @@ func GetAtomicQueryMTVV2OnChainInputs(
 	)
 
 	inputs, err := atomicQueryMTPV2OnChainProof.GetInputs()
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting inputs")
 	}
@@ -298,10 +356,66 @@ func GetAtomicQueryMTVV2OnChainInputs(
 	return inputs, nil
 }
 
-//func RemoveCredentials() {}
+func (c *Connector) WalletGetAddress() (string, error) {
+	w, err := wallet.NewWallet(c.PkHex, c.AddrPrefix)
+	if err != nil {
+		return "", errors.Wrap(err, "Error creating wallet")
+	}
 
-//func GetCredentials() {}
+	return w.Address, nil
+}
 
-//func CheckStateContractSync() {}
+func (c *Connector) WalletSend(fromAddr, toAddr string, amount int64) ([]byte, error) {
+	w, err := wallet.NewWallet(c.PkHex, c.AddrPrefix)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating wallet")
+	}
 
-//func CheckCredentialExistence() {}
+	chainConfig := client.ChainConfig{
+		ChainId:     c.ChainId,
+		Denom:       c.Denom,
+		MinGasPrice: uint64(c.MinGasPrice),
+		GasLimit:    uint64(c.GasLimit),
+	}
+
+	grpcClient, err := grpc.Dial(
+		c.RpcApi,
+		grpc.WithInsecure(),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    10 * time.Second, // wait time before ping if no activity
+			Timeout: 20 * time.Second, // ping timeout
+		}),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error dialing grpc")
+	}
+
+	rarimoClient, err := client.NewClient(
+		grpcClient,
+		chainConfig,
+		*w,
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating client")
+	}
+
+	txResp, err := rarimoClient.Send(
+		fromAddr,
+		toAddr,
+		amount,
+		c.Denom,
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error sending tx")
+	}
+
+	return txResp, nil
+}
+
+//func (c *Connector) RemoveCredentials() {}
+
+//func (c *Connector) GetCredentials() {}
+
+//func (c *Connector) CheckStateContractSync() {}
+
+//func (c *Connector) CheckCredentialExistence() {}

@@ -7,7 +7,7 @@ import (
 	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-jwz/v2"
-	"github.com/rarimo/zkp-iden3-exposer/types"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/types"
 	"net/http"
 	"testing"
 )

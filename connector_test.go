@@ -5,30 +5,12 @@ import (
 	"github.com/iden3/go-circuits/v2"
 	"github.com/iden3/go-jwz/v2"
 	"github.com/pkg/errors"
-	"github.com/rarimo/zkp-iden3-exposer/instances"
-	"github.com/rarimo/zkp-iden3-exposer/types"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/instances"
+	"github.com/rarimo/zkp-iden3-exposer/zkp/types"
 	"io"
 	"os"
 	"testing"
 )
-
-var identityConfig = types.IdentityConfig{
-	PkHex: "9a5305fa4c55cbf517c99693a7ec6766203c88feab50c944c00feec051d5dab7",
-
-	IdType: [2]byte{
-		0x01,
-		0x00,
-	},
-	SchemaHashHex: "cca3371a6cb1b715004407e325bd993c",
-
-	TargetChainId:              11155111,
-	TargetRpcUrl:               "https://endpoints.omniatech.io/v1/eth/sepolia/public",
-	TargetStateContractAddress: "0x8a9F505bD8a22BF09b0c19F65C17426cd33f3912",
-
-	CoreApiUrl:               "https://rpc-api.node1.mainnet-beta.rarimo.com",
-	CoreEvmRpcApiUrl:         "https://rpc.evm.node1.mainnet-beta.rarimo.com",
-	CoreStateContractAddress: "0x753a8678c85d5fb70A97CFaE37c84CE2fD67EDE8",
-}
 
 func getFile(path string) ([]byte, error) {
 	file, err := os.Open(path)
@@ -55,13 +37,13 @@ func getFile(path string) ([]byte, error) {
 }
 
 func getGroth16AuthV2ZKProof(identity instances.Identity, offer types.ClaimOffer) ([]byte, error) {
-	wasm, err := getFile("./assets/circuits/auth/circuit.wasm")
+	wasm, err := getFile("./zkp/assets/circuits/auth/circuit.wasm")
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting wasm file")
 	}
 
-	provingKey, err := getFile("./assets/circuits/auth/circuit_final.zkey")
+	provingKey, err := getFile("./zkp/assets/circuits/auth/circuit_final.zkey")
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting proving key")
@@ -111,22 +93,51 @@ func TestConnector(t *testing.T) {
 	issuerApi := "https://issuer.polygon.robotornot.mainnet-beta.rarimo.com"
 	claimType := "urn:uuid:6dff4518-5177-4f39-af58-9c156d9b6309"
 
-	identityConfigJson, err := json.Marshal(identityConfig)
+	connector := NewConnector(
+		"1cbd5d2d1801e964736881fc0584473f23ba82669599ac65957fb4f2caf43e17",
 
+		[]byte{1, 0},
+		"cca3371a6cb1b715004407e325bd993c",
+
+		11155111,
+		"https://endpoints.omniatech.io/v1/eth/sepolia/public",
+		"0x8a9F505bD8a22BF09b0c19F65C17426cd33f3912",
+
+		"https://rpc-api.node1.mainnet-beta.rarimo.com",
+		"https://rpc.evm.node1.mainnet-beta.rarimo.com",
+		"0x753a8678c85d5fb70A97CFaE37c84CE2fD67EDE8",
+
+		"rarimo_42-1",
+		"rarimo",
+		"stake",
+		"104.196.227.66:9090",
+		0,
+		1000000,
+		true,
+	)
+
+	identity, err := instances.NewIdentity(instances.IdentityConfig{
+		IdType:        [2]byte(connector.IdType),
+		SchemaHashHex: connector.SchemaHashHex,
+		ChainInfo: types.ChainZkpInfo{
+			TargetChainId:              connector.TargetChainId,
+			TargetRpcUrl:               connector.TargetRpcUrl,
+			TargetStateContractAddress: connector.TargetStateContractAddress,
+			CoreApiUrl:                 connector.CoreApiUrl,
+			CoreEvmRpcApiUrl:           connector.CoreEvmRpcApiUrl,
+			CoreStateContractAddress:   connector.CoreStateContractAddress,
+		},
+	}, &connector.PkHex)
 	if err != nil {
-		t.Errorf("Error marshalling identity config: %v", err)
-	}
-
-	identityInstance, err := getIdentity(identityConfigJson)
-
-	if err != nil {
-		t.Errorf("Error getting identity instance: %v", err)
+		t.Errorf("Error creating identity: %v", err)
 	}
 
 	offer := types.ClaimOffer{}
 
+	walletAddress := ""
+
 	t.Run("Should get offer json", func(t *testing.T) {
-		offerJson, err := GetOfferJson(issuerApi, identityInstance.DID.String(), claimType)
+		offerJson, err := connector.GetOfferJson(issuerApi, identity.DID.String(), claimType)
 
 		if err != nil {
 			t.Errorf("Error getting offer json: %v", err)
@@ -145,7 +156,7 @@ func TestConnector(t *testing.T) {
 			t.Errorf("Error marshalling offer: %v", err)
 		}
 
-		authV2InputsJson, err := GetAuthV2Inputs(identityConfigJson, offerJson)
+		authV2InputsJson, err := connector.GetAuthV2Inputs(offerJson)
 
 		if err != nil {
 			t.Errorf("Error getting auth v2 inputs: %v", err)
@@ -155,19 +166,17 @@ func TestConnector(t *testing.T) {
 	})
 	t.Run("Should get VC", func(t *testing.T) {
 		/* IMITATE GROTH16 AUTHV2 PROVE, should be done in mobile device */
-		zkProofRaw, err := getGroth16AuthV2ZKProof(*identityInstance, offer)
-
+		zkProofRaw, err := getGroth16AuthV2ZKProof(*identity, offer)
 		if err != nil {
 			t.Errorf("Error getting Groth16 AuthV2 ZK Proof: %v", err)
 		}
 
 		offerJson, err := json.Marshal(offer)
-
 		if err != nil {
 			t.Errorf("Error marshalling offer: %v", err)
 		}
 
-		vc, err := GetVC(identityConfigJson, offerJson, zkProofRaw)
+		vc, err := connector.GetVC(offerJson, zkProofRaw)
 
 		if err != nil {
 			t.Errorf("Error getting VC: %v", err)
@@ -177,15 +186,13 @@ func TestConnector(t *testing.T) {
 
 	})
 	t.Run("Should get atomic query mtp v2 on-chain inputs", func(t *testing.T) {
-		vcB, err := getFile("./mocks/vc.json")
-
+		vcB, err := getFile("./zkp/mocks/vc.json")
 		if err != nil {
 			t.Errorf("Error getting file: %v", err)
 		}
 
 		// Test the GetIdentity function
-		atomicQueryMTVV2OnChainInputs, err := GetAtomicQueryMTVV2OnChainInputs(
-			identityConfigJson,
+		atomicQueryMTVV2OnChainInputs, err := connector.GetAtomicQueryMTVV2OnChainInputs(
 			vcB,
 			"credentialAtomicQueryMTPV2OnChain",
 			"EA931A38726546cB7B5992483867387fC9FAdF7b",
@@ -199,5 +206,27 @@ func TestConnector(t *testing.T) {
 		}
 
 		println(string(atomicQueryMTVV2OnChainInputs))
+	})
+	t.Run("Should get wallet address", func(t *testing.T) {
+		addr, err := connector.WalletGetAddress()
+		if err != nil {
+			t.Errorf("Error getting wallet address: %v", err)
+		}
+
+		walletAddress = addr
+
+		println(walletAddress)
+	})
+	t.Run("Should send `MsgSend` tx", func(t *testing.T) {
+		txResp, err := connector.WalletSend(
+			walletAddress,
+			"rarimo1apm2p4k97euu8k8lxg9974kxvfnah8zj7lnydf",
+			1000, // 1000000 = 1 Stake, 1000 = 0.001 Stake
+		)
+		if err != nil {
+			t.Errorf("Error sending tx: %v", err)
+		}
+
+		println(string(txResp))
 	})
 }
